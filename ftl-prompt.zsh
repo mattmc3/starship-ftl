@@ -30,7 +30,12 @@
 #   zstyle ':ftl-prompt:' cursor bar
 # Styles are block, underline, or bar, with an optional blinking- prefix, or
 # a raw DECSCUSR number 0-6.
-STARSHIP_FTL_VERSION="1.0.1"
+
+0=${(%):-%N}
+typeset -gUa fpath
+(( ${fpath[(Ie)${0:A:h}/themes]} )) || fpath+=(${0:A:h}/themes)
+STARSHIP_FTL_VERSION="0.0.1"
+
 autoload -Uz add-zsh-hook promptinit
 zmodload -F zsh/files b:zf_rm 2>/dev/null
 
