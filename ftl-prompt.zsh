@@ -10,9 +10,6 @@
 #   source /path/to/starship-ftl.zsh
 #   ftl-prompt starship
 #
-# And at the very bottom, so the drawn prompt survives the rest of startup:
-#   ftl-prompt-post
-#
 # By default the theme is loaded first and its own prompt is drawn, so what you
 # see is what you get, with nothing to keep in sync. That costs a couple of
 # milliseconds, which is the right trade for most themes.
@@ -125,14 +122,6 @@ _ftl_prompt_capture() {
   typeset -g _ftl_prompt_log=${XDG_CACHE_HOME:-$HOME/.cache}/starship-ftl.$$
   { : >| $_ftl_prompt_log } 2>/dev/null || { unset _ftl_prompt_log; return 0 }
   exec {_ftl_prompt_fd1}>&1 {_ftl_prompt_fd2}>&2 >>$_ftl_prompt_log 2>&1
-}
-
-# Move the cleanup last, so the drawn prompt is not erased before the real
-# prompt is ready to replace it.
-ftl-prompt-post() {
-  emulate -L zsh
-  (( ${precmd_functions[(I)_ftl_prompt_clear]} )) || return 0
-  precmd_functions=(${precmd_functions:#_ftl_prompt_clear} _ftl_prompt_clear)
 }
 
 _ftl_prompt_clear() {

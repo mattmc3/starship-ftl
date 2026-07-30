@@ -53,12 +53,6 @@ source /path/to/starship-ftl/starship-ftl.plugin.zsh
 ftl-prompt starship
 ```
 
-And at the very bottom, so the drawn prompt survives the rest of startup:
-
-```zsh
-ftl-prompt-post
-```
-
 ### Starship configs
 
 The starship theme takes an optional config argument:
