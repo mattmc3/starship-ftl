@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 #
-# setup_starship_prompt: Use starship with the built-in Zsh prompt system conventions.
+# prompt_starship_setup: Use starship with the built-in Zsh prompt system conventions.
 #
 
 #function prompt_starship_setup {
