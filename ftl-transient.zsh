@@ -21,32 +21,40 @@
 # The profile defaults to "transient". Pass another name to use a different one:
 #   ftl-transient on my-short-prompt
 #
-# RPROMPT is handled by zsh's own transient_rprompt option, which `on` enables
-# and `off` puts back the way it found it.
+# The right prompt is dropped from the finished line as well, without modifying
+# RPROMPT or touching zsh's own transient_rprompt option.
 #
-# How it works. Three moving parts, in the order they run:
+# How it works. Four moving parts, in the order they run:
 #
 #   precmd            Render the short prompt and cache it, one starship call
 #                     per command. Nothing shells out later, so no process spawn
 #                     sits between a keypress and the redraw.
-#   zle-line-finish   The line is done. Swap PROMPT to the cached string and
-#                     reset-prompt, so the line as committed to scrollback keeps
-#                     the short prompt.
-#   zle -F            Put the full prompt back, deferred. sysopen on /dev/null
-#                     gives a descriptor that is always readable, so the handler
-#                     fires the moment zle is next active: after the line is
-#                     committed, before the next one is edited.
+#   zle-line-finish   The line is done. Draw the cached string where the prompt
+#                     was, so the line as committed to scrollback keeps the short
+#                     prompt.
+#   zle-line-init     A real prompt has just been drawn, so there is nothing left
+#                     to undo. Stands the restore below down.
+#   zle -F            Redraw the real prompt, deferred, unless line-init already
+#                     did. sysopen on /dev/null gives a descriptor that is always
+#                     readable, so the handler fires the moment zle is next
+#                     active: after the line is committed, before the next one is
+#                     edited.
+#
+# The swap is a redraw, not an assignment. zle-line-finish shortens the prompt
+# with a command-prefix assignment, `PROMPT=$short zle .reset-prompt`, which
+# lasts exactly as long as that one command. PROMPT and RPROMPT themselves are
+# never modified, so there is nothing to snapshot and nothing to put back, and a
+# prompt changed later by anything else is left alone.
 #
 # The deferral is why the swap is safe. zle-line-finish also fires for lines that
 # were abandoned rather than run, so the prompt sometimes shortens when it should
 # not have. Instead of enumerating those cases, the restore is armed at the same
-# moment the prompt shortens, and always undoes it.
+# moment the prompt shortens, and undoes it whenever nothing else already has.
 #
 # Ctrl-C never reaches the send-break widget, it arrives as SIGINT, so both paths
 # are covered: a TRAPINT for the signal and a send-break wrapper for the widget.
 # Both delegate to whatever was already installed rather than replacing it.
 
-0=${(%):-%N}
 zmodload zsh/system || return 1
 zmodload zsh/parameter 2>/dev/null || return 1
 # add-zle-hook-widget needs zsh/zutil already loaded. It keeps its list of valid
@@ -58,33 +66,21 @@ autoload -Uz add-zsh-hook add-zle-hook-widget
 
 typeset -g  _ftl_transient_profile=
 typeset -g  _ftl_transient_prompt=
-typeset -g  _ftl_transient_full_prompt=
 typeset -gi _ftl_transient_fd=0
 typeset -gi _ftl_transient_active=0
-typeset -gi _ftl_transient_set_rprompt=0
+# Set when the short prompt is on screen, cleared once anything else has drawn
+# over it. The deferred restore only has work to do while this is set.
+typeset -gi _ftl_transient_stale=0
 
-# No `emulate -L zsh` here. It implies LOCAL_OPTIONS, which would roll back the
-# transient_rprompt setopt below the moment this function returns.
 ftl-transient() {
   case $1 in
     on)
       shift
       _ftl_transient_enable "$@" || return
-      # zsh already knows how to drop the right prompt from a finished line.
-      # Remember whether it was ours to set, so `off` does not clobber a user
-      # who had it on already.
-      if [[ -o transient_rprompt ]]; then
-        _ftl_transient_set_rprompt=0
-      else
-        _ftl_transient_set_rprompt=1
-        setopt transient_rprompt
-      fi
       return 0
       ;;
     off)
       _ftl_transient_disable
-      (( _ftl_transient_set_rprompt )) && unsetopt transient_rprompt
-      _ftl_transient_set_rprompt=0
       return 0
       ;;
     *)
@@ -120,21 +116,9 @@ _ftl_transient_enable() {
     _ftl_transient_profile=
   fi
 
-  # Snapshot the real prompt now, not in precmd. The restore is deferred until
-  # zle is next active, which is after precmd runs, so at precmd time PROMPT
-  # still holds the short value. Snapshotting there would capture the transient
-  # prompt as the full one and it would never come back.
-  _ftl_transient_full_prompt=$PROMPT
-
-  # Preserve a TRAPINT someone else installed. Ours has to run to catch Ctrl-C,
-  # which arrives as a signal and never reaches the send-break widget.
-  if (( $+functions[TRAPINT] )) &&
-     [[ ${functions[TRAPINT]} != *_ftl_transient_truncate* ]]; then
-    functions[_ftl_transient_orig_trapint]=${functions[TRAPINT]}
-  fi
-
   add-zsh-hook precmd _ftl_transient_precmd
   add-zle-hook-widget zle-line-finish _ftl_transient_truncate
+  add-zle-hook-widget zle-line-init _ftl_transient_fresh
   _ftl_transient_wrap_send_break
   _ftl_transient_active=1
 }
@@ -144,18 +128,30 @@ _ftl_transient_disable() {
 
   add-zsh-hook -d precmd _ftl_transient_precmd
   add-zle-hook-widget -d zle-line-finish _ftl_transient_truncate 2>/dev/null
+  add-zle-hook-widget -d zle-line-init _ftl_transient_fresh 2>/dev/null
   _ftl_transient_unwrap_send_break
 
+  # Only take out a TRAPINT that is ours. The chain is built in precmd, so `off`
+  # before the first precmd has nothing of ours installed, and the trap sitting
+  # there belongs to someone else.
   if (( $+functions[_ftl_transient_orig_trapint] )); then
     functions[TRAPINT]=${functions[_ftl_transient_orig_trapint]}
     unfunction _ftl_transient_orig_trapint
-  elif (( $+functions[TRAPINT] )); then
+  elif (( $+functions[TRAPINT] )) &&
+       [[ ${functions[TRAPINT]} == *_ftl_transient_truncate* ]]; then
     unfunction TRAPINT
   fi
 
-  (( _ftl_transient_fd )) && { zle -F $_ftl_transient_fd 2>/dev/null; _ftl_transient_fd=0 }
+  # `zle -F fd` only drops the handler, so close the descriptor too or it stays
+  # open for the life of the shell, one per on/off cycle.
+  (( _ftl_transient_fd )) && {
+    zle -F $_ftl_transient_fd 2>/dev/null
+    exec {_ftl_transient_fd}>&-
+    _ftl_transient_fd=0
+  }
 
-  [[ -n $_ftl_transient_full_prompt ]] && PROMPT=$_ftl_transient_full_prompt
+  # PROMPT needs no restoring: it was never assigned to. See _ftl_transient_truncate.
+  _ftl_transient_stale=0
   _ftl_transient_active=0
 }
 
@@ -174,6 +170,17 @@ _ftl_transient_precmd() {
       _ftl_transient_prompt='%# '
     fi
   }
+
+  # Preserve a TRAPINT someone else installed. Ours has to run to catch Ctrl-C,
+  # which arrives as a signal and never reaches the send-break widget. Checked
+  # every cycle rather than once at enable time, so a trap installed later is
+  # picked up instead of being overwritten below and never running again. The
+  # guard keeps ours from being captured as the original and nesting each cycle
+  # inside the last.
+  if (( $+functions[TRAPINT] )) &&
+     [[ ${functions[TRAPINT]} != *_ftl_transient_truncate* ]]; then
+    functions[_ftl_transient_orig_trapint]=${functions[TRAPINT]}
+  fi
 
   # Redefined every cycle so it survives anything that clears traps, and so it
   # is present from the first prompt onward.
@@ -242,7 +249,13 @@ _ftl_transient_truncate() {
 
   # TRAPINT can reach here with the editor already gone.
   zle || return 0
-  PROMPT=$_ftl_transient_prompt zle .reset-prompt
+  _ftl_transient_stale=1
+  # A command-prefix assignment, so it lasts exactly as long as the reset-prompt
+  # it feeds. PROMPT and RPROMPT hold their real values again on the next line,
+  # which is why nothing downstream has to put them back. Blanking RPROMPT is
+  # what drops the right prompt from the finished line, and it costs nothing:
+  # leaving it set would render a right prompt only to throw it away.
+  PROMPT=$_ftl_transient_prompt RPROMPT= zle .reset-prompt
   zle -R
 }
 
@@ -255,9 +268,19 @@ _ftl_transient_restore() {
   (( ${+1} )) && zle -F $1
   _ftl_transient_fd=0
 
-  PROMPT=$_ftl_transient_full_prompt
+  # Only the screen can be stale, never PROMPT itself. By the time this fires on
+  # the ordinary path, zle-line-init has already drawn the real prompt, so
+  # redrawing would be a second full render of a prompt that is already right.
+  (( _ftl_transient_stale )) || return 0
+  _ftl_transient_stale=0
   zle .reset-prompt
   zle -R
+}
+
+# A fresh prompt has just been drawn, so whatever the truncation put on screen is
+# gone and the deferred restore has nothing left to undo.
+_ftl_transient_fresh() {
+  _ftl_transient_stale=0
 }
 
 # send-break is a real widget, not a hook, so it cannot go through
@@ -266,12 +289,10 @@ _ftl_transient_restore() {
 # afterwards skips their wrapper for good. Alias the existing binding to a
 # private name and delegate to that instead.
 _ftl_transient_wrap_send_break() {
-  case ${widgets[send-break]:-} in
+  # send-break always exists, reading as `builtin` when nobody has rebound it,
+  # so there is no unbound case needing a widget created from scratch.
+  case ${widgets[send-break]} in
     user:_ftl_transient_send_break) ;;
-    '')
-      zle -N send-break _ftl_transient_send_break
-      typeset -g _ftl_transient_break_created=1
-      ;;
     *)
       zle -A send-break ._ftl_transient_orig::send-break
       zle -N send-break _ftl_transient_send_break
@@ -281,14 +302,10 @@ _ftl_transient_wrap_send_break() {
 }
 
 _ftl_transient_unwrap_send_break() {
-  if (( ${+_ftl_transient_break_wrapped} )); then
-    zle -A ._ftl_transient_orig::send-break send-break
-    zle -D ._ftl_transient_orig::send-break
-    unset _ftl_transient_break_wrapped
-  elif (( ${+_ftl_transient_break_created} )); then
-    zle -D send-break 2>/dev/null
-    unset _ftl_transient_break_created
-  fi
+  (( ${+_ftl_transient_break_wrapped} )) || return 0
+  zle -A ._ftl_transient_orig::send-break send-break
+  zle -D ._ftl_transient_orig::send-break
+  unset _ftl_transient_break_wrapped
 }
 
 _ftl_transient_send_break() {

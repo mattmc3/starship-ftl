@@ -51,6 +51,26 @@ $1"
   [[ "$output" == *"w:137"* ]]
 }
 
+@test "precmd shells out to starship exactly once" {
+  # Rendering lives in precmd to keep process spawns off the keypress path. A
+  # second call sneaking in here doubles the per-command cost, which is the one
+  # thing this plugin cannot afford to get wrong.
+  local calls="${BATS_TEST_TMPDIR}/calls"
+  : > "$calls"
+  run env STARSHIP_SPY="$calls" PATH="${FAKEBIN}:${PATH}" \
+    zsh -fc "source ${LIB}; _ftl_transient_profile=transient; _ftl_transient_precmd"
+  [ "$(wc -l < "$calls" | tr -d ' ')" -eq 1 ]
+}
+
+@test "the cached prompt is a literal, not a command substitution" {
+  # A $(...) left in the cache would be re-run on every prompt redraw, which is
+  # exactly the cost precmd exists to pay once.
+  run zfake '_ftl_transient_profile=transient
+_ftl_transient_precmd
+[[ $_ftl_transient_prompt == *"\$("* ]] && print SUBST || print LITERAL'
+  [ "$output" = "LITERAL" ]
+}
+
 @test "enabling without starship on PATH fails with a message" {
   # PATH has to be emptied inside zsh. Doing it outside makes the shell itself
   # unfindable, and the test passes without reaching the enable path.

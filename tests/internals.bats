@@ -56,6 +56,83 @@ $1"
   [ "$output" = "[%# ]" ]
 }
 
+# --- the prompt swap ---------------------------------------------------------
+
+@test "a command-prefix assignment does not outlive the command" {
+  # _ftl_transient_truncate swaps the prompt with `PROMPT=$short zle
+  # .reset-prompt`. That form is scoped to the one command, so PROMPT holds the
+  # full prompt again the moment reset-prompt returns. Everything downstream
+  # rests on this: nothing has to put PROMPT back, and nothing may assume it was
+  # left short.
+  run zrun 'PROMPT=FULL; () { PROMPT=SHORT builtin true }; printf "[%s]" "$PROMPT"'
+  [ "$output" = "[FULL]" ]
+}
+
+@test "the deferred restore stands down once a fresh prompt has been drawn" {
+  # On the ordinary path zle-line-init has already drawn the real prompt by the
+  # time the restore fires, so redrawing again is a second full render of a
+  # prompt that is already correct.
+  run zrun '_ftl_transient_stale=1
+_ftl_transient_fresh
+print "stale=$_ftl_transient_stale"'
+  [ "$output" = "stale=0" ]
+}
+
+@test "the restore releases its descriptor even when it skips the redraw" {
+  # Arming happens ahead of the `zle` guard, so a truncate outside the editor
+  # still opens the descriptor. Bailing out early must not strand it.
+  run zrun '_ftl_transient_truncate
+_ftl_transient_stale=0
+_ftl_transient_restore $_ftl_transient_fd
+print "rc=$? fd=$_ftl_transient_fd"'
+  [ "$output" = "rc=0 fd=0" ]
+}
+
+# --- TRAPINT -----------------------------------------------------------------
+
+@test "a TRAPINT installed after enabling is still preserved" {
+  # The chain is rebuilt every precmd, not once at enable time. A trap installed
+  # later would otherwise be overwritten on the next prompt and never run again.
+  run zrun '_ftl_transient_precmd
+TRAPINT() { print "foreign ran"; return 99 }
+_ftl_transient_precmd
+TRAPINT 2
+print "rc=$?"'
+  [ "${lines[0]}" = "foreign ran" ]
+  [ "${lines[1]}" = "rc=99" ]
+}
+
+@test "off leaves a foreign TRAPINT alone when ours was never installed" {
+  # The chain is built in precmd, not in enable, so `off` before the first precmd
+  # has nothing of ours to take out. Removing TRAPINT unconditionally there would
+  # delete a trap belonging to someone else.
+  run zsh -fc "source ${LIB} || exit 1
+zmodload zsh/zle 2>/dev/null
+TRAPINT() { print 'foreign ran'; return 99 }
+_ftl_transient_active=1
+_ftl_transient_disable
+print \"trapint=\${+functions[TRAPINT]}\"" 2>/dev/null
+  [[ "$output" == *"trapint=1"* ]]
+}
+
+@test "off removes the TRAPINT it installed itself" {
+  run zsh -fc "source ${LIB} || exit 1
+zmodload zsh/zle 2>/dev/null
+_ftl_transient_precmd
+_ftl_transient_active=1
+_ftl_transient_disable
+print \"trapint=\${+functions[TRAPINT]}\"" 2>/dev/null
+  [[ "$output" == *"trapint=0"* ]]
+}
+
+@test "rebuilding the chain every precmd does not nest us inside ourselves" {
+  # Ours must never be captured as the "original", or each cycle wraps the last
+  # and the recursion grows without bound.
+  run zrun 'repeat 3 { _ftl_transient_precmd }
+print "orig=${+functions[_ftl_transient_orig_trapint]}"'
+  [ "$output" = "orig=0" ]
+}
+
 # --- TRAPINT -----------------------------------------------------------------
 
 @test "TRAPINT survives precmd returning" {

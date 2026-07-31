@@ -7,7 +7,27 @@
 # no starship at all lives in internals.bats.
 #
 # The prompt swap itself, Ctrl-C and job notifications are not covered anywhere.
-# They need a pty, and are checked by hand against examples/*.toml.
+# They need a pty, and are checked by hand against examples/*.toml. The cases
+# worth walking, all of them with `bindkey -e` pinned, because zsh picks viins
+# when $EDITOR looks like vi and then ^G is list-expand rather than send-break:
+#
+#    1. Two ordinary commands, then look at scrollback
+#    2. Enter on an empty line, twice
+#    3. TAB completion menu, then Ctrl-C, with no command after it
+#    4. ESC x (execute-named-cmd), then Ctrl-C
+#    5. Ctrl-R history search, then Ctrl-C, with no command after it
+#    6. Ctrl-C on a typed line, then check $? is 130
+#    7. Ctrl-C during a running command, then check $? is 130
+#    8. A multi-line command, to see PROMPT2 continuation lines
+#    9. A background job, so its completion notice has to land somewhere
+#   10. `ftl-transient off`, a command, then `on` again
+#   11. All of the above on the first command of a session with ftl-prompt
+#       loaded, where the transient redraw lands between the cursor position
+#       ftl-prompt saved and the erase it anchors to that position
+#
+# Cases 3, 4 and 5 are the ones that matter most: the line editor finished but
+# nothing ran, so the prompt shortens when it should not have, and the deferred
+# restore is what has to put it back.
 
 setup() {
   if ! command -v starship >/dev/null 2>&1; then
@@ -132,28 +152,28 @@ printf "[%s]" "$_ftl_transient_prompt"'
 }
 
 @test "the RPROMPT variable is never modified" {
-  # Dropping the right prompt from a finished line is transient_rprompt's job,
-  # so RPROMPT itself is left as the user set it.
+  # The right prompt is dropped from a finished line by blanking RPROMPT for the
+  # one reset-prompt call, so the variable itself is left as the user set it.
   run zfix_i minimal.toml 'RPROMPT="KEEPME"
 ftl-transient on transient
 printf "[%s]" "$RPROMPT"'
   [[ "$output" == *"[KEEPME]"* ]]
 }
 
-@test "on enables transient_rprompt" {
-  run zfix_i minimal.toml 'ftl-transient on transient
-print "opt=$options[transientrprompt]"'
-  [[ "$output" == *"opt=on"* ]]
-}
-
-@test "off puts transient_rprompt back when we set it" {
-  run zfix_i minimal.toml 'ftl-transient on transient
+@test "the transient_rprompt option is left exactly as it was found" {
+  # The widget already drops the right prompt, so there is no reason to reach out
+  # and flip a global shell option the user may have chosen deliberately.
+  run zfix_i minimal.toml 'print "before=$options[transientrprompt]"
+ftl-transient on transient
+print "during=$options[transientrprompt]"
 ftl-transient off
-print "opt=$options[transientrprompt]"'
-  [[ "$output" == *"opt=off"* ]]
+print "after=$options[transientrprompt]"'
+  [[ "$output" == *"before=off"* ]]
+  [[ "$output" == *"during=off"* ]]
+  [[ "$output" == *"after=off"* ]]
 }
 
-@test "off leaves transient_rprompt alone when the user set it" {
+@test "a transient_rprompt the user set is still on afterwards" {
   run zfix_i minimal.toml 'setopt transient_rprompt
 ftl-transient on transient
 ftl-transient off
@@ -185,14 +205,16 @@ printf "[%s][%s]" "$_ftl_transient_profile" "$_ftl_transient_prompt"'
   [[ "$output" == *"p=transient"* ]]
 }
 
-@test "enabling registers the precmd hook and the line-finish widget" {
+@test "enabling registers the precmd hook and both line widgets" {
   run zfix_i minimal.toml 'ftl-transient on transient
 print "precmd=${#${(@M)precmd_functions:#_ftl_transient_precmd}}"
 print "finish=${widgets[zle-line-finish]:+yes}"
+print "init=${widgets[zle-line-init]:+yes}"
 print "active=$_ftl_transient_active"'
   [ "${lines[0]}" = "precmd=1" ]
   [ "${lines[1]}" = "finish=yes" ]
-  [ "${lines[2]}" = "active=1" ]
+  [ "${lines[2]}" = "init=yes" ]
+  [ "${lines[3]}" = "active=1" ]
 }
 
 @test "enabling twice registers the hook only once" {
@@ -211,13 +233,35 @@ print "active=$_ftl_transient_active"'
   [ "${lines[1]}" = "active=0" ]
 }
 
-@test "disabling restores the prompt captured at enable time" {
-  run zfix_i minimal.toml 'PROMPT="ORIGINAL> "
+@test "a prompt set after enabling survives the deferred restore" {
+  # Any later prompt change, another theme or a `prompt off`, has to stick.
+  # Snapshotting PROMPT at enable time and reassigning it in the restore rolls
+  # such a change back on every command, for the life of the shell.
+  run zfix_i minimal.toml 'PROMPT="OLD> "
 ftl-transient on transient
-PROMPT="clobbered"
+PROMPT="NEW> "
+_ftl_transient_stale=1
+_ftl_transient_restore
+printf "[%s]" "$PROMPT"'
+  [[ "$output" == *"[NEW> ]"* ]]
+}
+
+@test "disabling leaves the prompt as it currently is" {
+  run zfix_i minimal.toml 'ftl-transient on transient
+PROMPT="CURRENT> "
 ftl-transient off
 printf "[%s]" "$PROMPT"'
-  [[ "$output" == *"[ORIGINAL> ]"* ]]
+  [[ "$output" == *"[CURRENT> ]"* ]]
+}
+
+@test "off closes the descriptor it opened" {
+  # `zle -F fd` only removes the handler. Without an explicit close the
+  # descriptor stays open for the life of the shell, one per on/off cycle.
+  run zfix_i minimal.toml 'before=$(print -l /dev/fd/*(N) | wc -l)
+repeat 5 { ftl-transient on transient; _ftl_transient_truncate; ftl-transient off }
+after=$(print -l /dev/fd/*(N) | wc -l)
+print "leaked=$(( after - before ))"'
+  [[ "$output" == *"leaked=0"* ]]
 }
 
 @test "disabling when never enabled is harmless" {
