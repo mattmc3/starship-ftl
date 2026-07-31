@@ -52,9 +52,8 @@ $1"
 }
 
 @test "precmd shells out to starship exactly once" {
-  # Rendering lives in precmd to keep process spawns off the keypress path. A
-  # second call sneaking in here doubles the per-command cost, which is the one
-  # thing this plugin cannot afford to get wrong.
+  # Rendering lives in precmd to keep spawns off the keypress path. A second call
+  # sneaking in here doubles the per-command cost.
   local calls="${BATS_TEST_TMPDIR}/calls"
   : > "$calls"
   run env STARSHIP_SPY="$calls" PATH="${FAKEBIN}:${PATH}" \
@@ -63,8 +62,7 @@ $1"
 }
 
 @test "the cached prompt is a literal, not a command substitution" {
-  # A $(...) left in the cache would be re-run on every prompt redraw, which is
-  # exactly the cost precmd exists to pay once.
+  # A $(...) here would be re-run on every redraw, the cost precmd pays once.
   run zfake '_ftl_transient_profile=transient
 _ftl_transient_precmd
 [[ $_ftl_transient_prompt == *"\$("* ]] && print SUBST || print LITERAL'

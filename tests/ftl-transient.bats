@@ -7,27 +7,22 @@
 # no starship at all lives in internals.bats.
 #
 # The prompt swap itself, Ctrl-C and job notifications are not covered anywhere.
-# They need a pty, and are checked by hand against examples/*.toml. The cases
-# worth walking, all of them with `bindkey -e` pinned, because zsh picks viins
-# when $EDITOR looks like vi and then ^G is list-expand rather than send-break:
+# They need a pty. `just demo` sets one up. Pin `bindkey -e` first, or zsh picks
+# viins when $EDITOR looks like vi and ^G stops being send-break. Worth walking:
 #
-#    1. Two ordinary commands, then look at scrollback
-#    2. Enter on an empty line, twice
-#    3. TAB completion menu, then Ctrl-C, with no command after it
-#    4. ESC x (execute-named-cmd), then Ctrl-C
-#    5. Ctrl-R history search, then Ctrl-C, with no command after it
-#    6. Ctrl-C on a typed line, then check $? is 130
-#    7. Ctrl-C during a running command, then check $? is 130
-#    8. A multi-line command, to see PROMPT2 continuation lines
-#    9. A background job, so its completion notice has to land somewhere
-#   10. `ftl-transient off`, a command, then `on` again
-#   11. All of the above on the first command of a session with ftl-prompt
-#       loaded, where the transient redraw lands between the cursor position
-#       ftl-prompt saved and the erase it anchors to that position
-#
-# Cases 3, 4 and 5 are the ones that matter most: the line editor finished but
-# nothing ran, so the prompt shortens when it should not have, and the deferred
-# restore is what has to put it back.
+#   Two ordinary commands, then read the scrollback
+#   Enter on an empty line, twice
+#   Ctrl-C out of a TAB completion menu, a Ctrl-R search, and ESC x, each with no
+#     command after it. These are the ones that matter: the editor finished but
+#     nothing ran, so the prompt shortens when it should not have and only the
+#     deferred restore puts it back
+#   Ctrl-C on a typed line, and during a running command, for $? = 130
+#   A multi-line command, for the PROMPT2 continuation rows
+#   A background job, so its completion notice has to land somewhere
+#   `ftl-transient off`, a command, then `on` again
+#   The first command of a session with ftl-prompt loaded, where the transient
+#     redraw lands between the cursor position ftl-prompt saved and the erase
+#     anchored to it
 
 setup() {
   if ! command -v starship >/dev/null 2>&1; then
@@ -161,8 +156,8 @@ printf "[%s]" "$RPROMPT"'
 }
 
 @test "the transient_rprompt option is left exactly as it was found" {
-  # The widget already drops the right prompt, so there is no reason to reach out
-  # and flip a global shell option the user may have chosen deliberately.
+  # The widget already drops the right prompt, so there is no reason to flip a
+  # global option the user may have set on purpose.
   run zfix_i minimal.toml 'print "before=$options[transientrprompt]"
 ftl-transient on transient
 print "during=$options[transientrprompt]"
@@ -235,8 +230,8 @@ print "active=$_ftl_transient_active"'
 
 @test "a prompt set after enabling survives the deferred restore" {
   # Any later prompt change, another theme or a `prompt off`, has to stick.
-  # Snapshotting PROMPT at enable time and reassigning it in the restore rolls
-  # such a change back on every command, for the life of the shell.
+  # Snapshotting at enable time and reassigning in the restore rolls it back on
+  # every command instead.
   run zfix_i minimal.toml 'PROMPT="OLD> "
 ftl-transient on transient
 PROMPT="NEW> "

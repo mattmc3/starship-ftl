@@ -59,19 +59,16 @@ $1"
 # --- the prompt swap ---------------------------------------------------------
 
 @test "a command-prefix assignment does not outlive the command" {
-  # _ftl_transient_truncate swaps the prompt with `PROMPT=$short zle
-  # .reset-prompt`. That form is scoped to the one command, so PROMPT holds the
-  # full prompt again the moment reset-prompt returns. Everything downstream
-  # rests on this: nothing has to put PROMPT back, and nothing may assume it was
-  # left short.
+  # truncate swaps with `PROMPT=$short zle .reset-prompt`, scoped to that one
+  # command, so PROMPT is full again the moment it returns. Nothing downstream may
+  # assume it was left short.
   run zrun 'PROMPT=FULL; () { PROMPT=SHORT builtin true }; printf "[%s]" "$PROMPT"'
   [ "$output" = "[FULL]" ]
 }
 
 @test "the deferred restore stands down once a fresh prompt has been drawn" {
-  # On the ordinary path zle-line-init has already drawn the real prompt by the
-  # time the restore fires, so redrawing again is a second full render of a
-  # prompt that is already correct.
+  # line-init has already drawn the real prompt by then, so a redraw would be a
+  # second full render of a prompt that is already correct.
   run zrun '_ftl_transient_stale=1
 _ftl_transient_fresh
 print "stale=$_ftl_transient_stale"'
@@ -103,9 +100,8 @@ print "rc=$?"'
 }
 
 @test "off leaves a foreign TRAPINT alone when ours was never installed" {
-  # The chain is built in precmd, not in enable, so `off` before the first precmd
-  # has nothing of ours to take out. Removing TRAPINT unconditionally there would
-  # delete a trap belonging to someone else.
+  # The chain is built in precmd, not enable, so `off` before the first precmd has
+  # nothing of ours to take out. Removing TRAPINT there would take someone else's.
   run zsh -fc "source ${LIB} || exit 1
 zmodload zsh/zle 2>/dev/null
 TRAPINT() { print 'foreign ran'; return 99 }

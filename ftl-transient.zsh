@@ -40,11 +40,10 @@
 #                     active: after the line is committed, before the next one is
 #                     edited.
 #
-# The swap is a redraw, not an assignment. zle-line-finish shortens the prompt
-# with a command-prefix assignment, `PROMPT=$short zle .reset-prompt`, which
-# lasts exactly as long as that one command. PROMPT and RPROMPT themselves are
-# never modified, so there is nothing to snapshot and nothing to put back, and a
-# prompt changed later by anything else is left alone.
+# The swap is a redraw, not an assignment. `PROMPT=$short zle .reset-prompt` is a
+# command-prefix assignment, so it lasts only as long as that one command. PROMPT
+# and RPROMPT are never modified, so there is nothing to snapshot and a prompt set
+# later by anything else is left alone.
 #
 # The deferral is why the swap is safe. zle-line-finish also fires for lines that
 # were abandoned rather than run, so the prompt sometimes shortens when it should
@@ -131,9 +130,8 @@ _ftl_transient_disable() {
   add-zle-hook-widget -d zle-line-init _ftl_transient_fresh 2>/dev/null
   _ftl_transient_unwrap_send_break
 
-  # Only take out a TRAPINT that is ours. The chain is built in precmd, so `off`
-  # before the first precmd has nothing of ours installed, and the trap sitting
-  # there belongs to someone else.
+  # Only remove a TRAPINT that is ours. The chain is built in precmd, so before
+  # the first one any trap sitting there belongs to someone else.
   if (( $+functions[_ftl_transient_orig_trapint] )); then
     functions[TRAPINT]=${functions[_ftl_transient_orig_trapint]}
     unfunction _ftl_transient_orig_trapint
@@ -150,7 +148,7 @@ _ftl_transient_disable() {
     _ftl_transient_fd=0
   }
 
-  # PROMPT needs no restoring: it was never assigned to. See _ftl_transient_truncate.
+  # PROMPT was never assigned to, so there is nothing to put back.
   _ftl_transient_stale=0
   _ftl_transient_active=0
 }
@@ -171,12 +169,10 @@ _ftl_transient_precmd() {
     fi
   }
 
-  # Preserve a TRAPINT someone else installed. Ours has to run to catch Ctrl-C,
-  # which arrives as a signal and never reaches the send-break widget. Checked
-  # every cycle rather than once at enable time, so a trap installed later is
-  # picked up instead of being overwritten below and never running again. The
-  # guard keeps ours from being captured as the original and nesting each cycle
-  # inside the last.
+  # Preserve a TRAPINT someone else installed; ours has to run to catch Ctrl-C,
+  # which arrives as a signal and never reaches send-break. Every cycle rather
+  # than once at enable, so a trap installed later still gets chained. The guard
+  # stops ours being captured as the original and nesting each cycle in the last.
   if (( $+functions[TRAPINT] )) &&
      [[ ${functions[TRAPINT]} != *_ftl_transient_truncate* ]]; then
     functions[_ftl_transient_orig_trapint]=${functions[TRAPINT]}
@@ -250,11 +246,9 @@ _ftl_transient_truncate() {
   # TRAPINT can reach here with the editor already gone.
   zle || return 0
   _ftl_transient_stale=1
-  # A command-prefix assignment, so it lasts exactly as long as the reset-prompt
-  # it feeds. PROMPT and RPROMPT hold their real values again on the next line,
-  # which is why nothing downstream has to put them back. Blanking RPROMPT is
-  # what drops the right prompt from the finished line, and it costs nothing:
-  # leaving it set would render a right prompt only to throw it away.
+  # Command-prefix assignment, so it lasts only as long as this reset-prompt and
+  # nothing downstream has to put PROMPT or RPROMPT back. Blanking RPROMPT drops
+  # the right prompt instead of rendering one to throw away.
   PROMPT=$_ftl_transient_prompt RPROMPT= zle .reset-prompt
   zle -R
 }
@@ -268,9 +262,8 @@ _ftl_transient_restore() {
   (( ${+1} )) && zle -F $1
   _ftl_transient_fd=0
 
-  # Only the screen can be stale, never PROMPT itself. By the time this fires on
-  # the ordinary path, zle-line-init has already drawn the real prompt, so
-  # redrawing would be a second full render of a prompt that is already right.
+  # Only the screen goes stale, never PROMPT. On the ordinary path line-init has
+  # already redrawn by now, so this would be a second render of a correct prompt.
   (( _ftl_transient_stale )) || return 0
   _ftl_transient_stale=0
   zle .reset-prompt
