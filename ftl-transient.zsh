@@ -226,7 +226,10 @@ _ftl_transient_profile_exists() {
 _ftl_transient_render() {
   emulate -L zsh
   local out
-  out=$(starship prompt --profile $1 \
+  # STARSHIP_SHELL is what tells starship to double a literal % and to wrap escape
+  # sequences in %{ %}, both of which PROMPT needs. `starship init zsh` exports it,
+  # but this renders for PROMPT either way, so do not depend on that having run.
+  out=$(STARSHIP_SHELL=zsh starship prompt --profile $1 \
           --terminal-width="$COLUMNS" \
           --status="${STARSHIP_CMD_STATUS:-0}" \
           --pipestatus="${STARSHIP_PIPE_STATUS[*]:-}" \

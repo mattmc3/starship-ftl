@@ -1,8 +1,11 @@
 _default:
     @just --list
 
+# Concurrent bats jobs, 2 or more. Needs GNU parallel: brew install parallel.
+jobs := "4"
+
 test:
-    bats --print-output-on-failure tests/
+    bats --print-output-on-failure --jobs {{ jobs }} --no-parallelize-within-files tests/
 
 # eg: just test-file internals
 test-file name:

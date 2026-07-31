@@ -142,11 +142,26 @@ $1" 2>&1 >/dev/null
   [ "$output" -gt 1 ]
 }
 
-@test "starship doubles a literal percent so PROMPT stays safe" {
-  # The transient string is assigned straight to PROMPT, where % is an escape.
+@test "render doubles a literal percent so PROMPT stays safe" {
+  # The rendered string is assigned straight to PROMPT, where % is an escape.
+  # starship only doubles it when STARSHIP_SHELL says zsh, so the environment is
+  # cleared here: relying on an inherited value passes on a developer's machine
+  # and fails anywhere starship has not been init'd.
   mkdir -p "${BATS_TEST_TMPDIR}/has%percent"
-  run bash -c "cd '${BATS_TEST_TMPDIR}/has%percent' && STARSHIP_CONFIG='${FIX}/percent.toml' starship prompt --profile transient"
+  run env -u STARSHIP_SHELL STARSHIP_CONFIG="${FIX}/percent.toml" \
+    zsh -fc "cd '${BATS_TEST_TMPDIR}/has%percent'
+source ${LIB} || exit 1
+_ftl_transient_render transient"
   [[ "$output" == *"%%percent"* ]]
+}
+
+@test "render wraps colour codes so zsh measures the prompt correctly" {
+  # Same dependency, different symptom. Unwrapped escapes count toward the prompt
+  # width and line editing wraps in the wrong column.
+  run env -u STARSHIP_SHELL STARSHIP_CONFIG="${FIX}/percent.toml" \
+    zsh -fc "source ${LIB} || exit 1
+_ftl_transient_render transient"
+  [[ "$output" == *'%{'* ]]
 }
 
 # --- precmd ------------------------------------------------------------------
@@ -258,13 +273,23 @@ printf "[%s]" "$PROMPT"'
 }
 
 @test "off closes the descriptor it opened" {
-  # `zle -F fd` only removes the handler. Without an explicit close the
-  # descriptor stays open for the life of the shell, one per on/off cycle.
-  run zfix_i minimal.toml 'before=$(print -l /dev/fd/*(N) | wc -l)
-repeat 5 { ftl-transient on transient; _ftl_transient_truncate; ftl-transient off }
-after=$(print -l /dev/fd/*(N) | wc -l)
-print "leaked=$(( after - before ))"'
-  [[ "$output" == *"leaked=0"* ]]
+  # `zle -F fd` only removes the handler. Without an explicit close the descriptor
+  # stays open for the life of the shell, one per on/off cycle.
+  #
+  # Detected by reuse rather than by counting /dev/fd: sysopen takes the lowest
+  # free descriptor, so a closed one comes back next cycle and a leaked one does
+  # not. Counting /dev/fd reads /proc/self/fd on Linux, where the subshell and
+  # pipe doing the counting are themselves in the count.
+  run zfix_i minimal.toml 'fds=()
+repeat 3 {
+  ftl-transient on transient
+  _ftl_transient_truncate
+  fds+=($_ftl_transient_fd)
+  ftl-transient off
+}
+print "unique=${#${(@u)fds}} first=$fds[1]"'
+  [[ "$output" == *"unique=1"* ]]
+  [[ "$output" != *"first=0"* ]]
 }
 
 @test "disabling when never enabled is harmless" {
