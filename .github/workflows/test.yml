@@ -1,0 +1,45 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  bats:
+    # Both platforms on purpose. zsh ships with macOS and is installed on Linux,
+    # and the versions differ enough to matter for a prompt plugin.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install zsh and bats
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y zsh bats
+
+      - name: Install bats
+        if: runner.os == 'macOS'
+        run: brew install bats-core
+
+      - name: Install starship
+        run: curl -sS https://starship.rs/install.sh | sh -s -- --yes
+
+      - name: Verify the tools are present
+        # The suite skips every starship test when the binary is missing, so a
+        # failed install would otherwise report a green run with nothing tested.
+        # Fail here instead.
+        run: |
+          zsh --version
+          bats --version
+          starship --version
+
+      - name: Run tests
+        run: bats --print-output-on-failure tests/
