@@ -58,6 +58,14 @@ $1"
 
 # --- the prompt swap ---------------------------------------------------------
 
+@test "the truncation touches the left prompt only" {
+  # Whether a finished line keeps its right prompt is the user's call, made with
+  # zsh's own transient_rprompt.
+  run zrun 'print -r -- ${functions[_ftl_transient_truncate]}'
+  [[ "$output" == *'PROMPT=$_ftl_transient_prompt'* ]]
+  [[ "$output" != *'RPROMPT'* ]]
+}
+
 @test "a command-prefix assignment does not outlive the command" {
   # truncate swaps with `PROMPT=$short zle .reset-prompt`, scoped to that one
   # command, so PROMPT is full again the moment it returns. Nothing downstream may

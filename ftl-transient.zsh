@@ -21,8 +21,8 @@
 # The profile defaults to "transient". Pass another name to use a different one:
 #   ftl-transient on my-short-prompt
 #
-# The right prompt is dropped from the finished line as well, without modifying
-# RPROMPT or touching zsh's own transient_rprompt option.
+# Only the left prompt is touched. Whether a finished line keeps its right prompt
+# is zsh's own transient_rprompt, which is the user's to set either way.
 #
 # How it works. Four moving parts, in the order they run:
 #
@@ -42,8 +42,8 @@
 #
 # The swap is a redraw, not an assignment. `PROMPT=$short zle .reset-prompt` is a
 # command-prefix assignment, so it lasts only as long as that one command. PROMPT
-# and RPROMPT are never modified, so there is nothing to snapshot and a prompt set
-# later by anything else is left alone.
+# is never modified, so there is nothing to snapshot and a prompt set later by
+# anything else is left alone.
 #
 # The deferral is why the swap is safe. zle-line-finish also fires for lines that
 # were abandoned rather than run, so the prompt sometimes shortens when it should
@@ -247,9 +247,8 @@ _ftl_transient_truncate() {
   zle || return 0
   _ftl_transient_stale=1
   # Command-prefix assignment, so it lasts only as long as this reset-prompt and
-  # nothing downstream has to put PROMPT or RPROMPT back. Blanking RPROMPT drops
-  # the right prompt instead of rendering one to throw away.
-  PROMPT=$_ftl_transient_prompt RPROMPT= zle .reset-prompt
+  # nothing downstream has to put PROMPT back.
+  PROMPT=$_ftl_transient_prompt zle .reset-prompt
   zle -R
 }
 

@@ -24,6 +24,7 @@ $line_break\
 $character"""
 
 right_format = """
+$status\
 $cmd_duration\
 $time"""
 
@@ -45,7 +46,7 @@ format = "[$path]($style)[$read_only]($read_only_style) "
 [character]
 success_symbol = "[❯](bold green)"
 error_symbol = "[❯](bold red)"
-vicmd_symbol = "[❮](bold yellow)"
+vimcmd_symbol = "[❮](bold yellow)"
 
 [git_branch]
 format = "[$symbol$branch]($style) "
@@ -54,6 +55,11 @@ style = "bold purple"
 [git_status]
 format = "([$all_status$ahead_behind]($style) )"
 style = "bold yellow"
+
+[status]
+disabled = false
+format = "[$status]($style) "
+style = "bold red"
 
 [cmd_duration]
 min_time = 500

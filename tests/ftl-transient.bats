@@ -13,9 +13,8 @@
 #   Two ordinary commands, then read the scrollback
 #   Enter on an empty line, twice
 #   Ctrl-C out of a TAB completion menu, a Ctrl-R search, and ESC x, each with no
-#     command after it. These are the ones that matter: the editor finished but
-#     nothing ran, so the prompt shortens when it should not have and only the
-#     deferred restore puts it back
+#     command after it. The editor finished but nothing ran, so the prompt shortens
+#     when it should not have and only the deferred restore puts it back
 #   Ctrl-C on a typed line, and during a running command, for $? = 130
 #   A multi-line command, for the PROMPT2 continuation rows
 #   A background job, so its completion notice has to land somewhere
@@ -147,8 +146,6 @@ printf "[%s]" "$_ftl_transient_prompt"'
 }
 
 @test "the RPROMPT variable is never modified" {
-  # The right prompt is dropped from a finished line by blanking RPROMPT for the
-  # one reset-prompt call, so the variable itself is left as the user set it.
   run zfix_i minimal.toml 'RPROMPT="KEEPME"
 ftl-transient on transient
 printf "[%s]" "$RPROMPT"'
@@ -156,8 +153,6 @@ printf "[%s]" "$RPROMPT"'
 }
 
 @test "the transient_rprompt option is left exactly as it was found" {
-  # The widget already drops the right prompt, so there is no reason to flip a
-  # global option the user may have set on purpose.
   run zfix_i minimal.toml 'print "before=$options[transientrprompt]"
 ftl-transient on transient
 print "during=$options[transientrprompt]"
@@ -275,6 +270,24 @@ print "leaked=$(( after - before ))"'
 @test "examples/multi-line.toml parses without complaint" {
   run bash -c "STARSHIP_CONFIG='${REPO}/examples/multi-line.toml' starship prompt 2>&1 >/dev/null"
   [ -z "$output" ]
+}
+
+@test "the examples spell starship's [character] keys correctly" {
+  # An unknown key is ignored in silence, no warning and no failing exit, so the
+  # two tests above pass just as happily with vicmd_symbol as with vimcmd_symbol.
+  # Scoped to [character] on purpose: print-config omits keys that have no default
+  # value, so a whole-config sweep flags live keys like time_format.
+  local known
+  known=$(starship print-config --default 2>/dev/null |
+    awk '/^\[character\]/{f=1;next} /^\[/{f=0} f&&/=/{print $1}')
+  [ -n "$known" ]
+  local cfg key
+  for cfg in single-line multi-line; do
+    for key in $(awk '/^\[character\]/{f=1;next} /^\[/{f=0} f&&/=/{print $1}' \
+                   "${REPO}/examples/${cfg}.toml"); do
+      grep -qx -- "$key" <<< "$known" || { echo "$cfg.toml: unknown key $key"; return 1; }
+    done
+  done
 }
 
 @test "examples/single-line.toml defines the transient profile" {
