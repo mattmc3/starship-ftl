@@ -1,0 +1,67 @@
+# Two-line prompt, powerlevel10k style, for eyeballing the transient swap when
+# the full prompt spans more than one row.
+#
+#   ftl-prompt starship /path/to/examples/multi-line.toml
+#   ftl-transient on
+#
+# Two things to check here:
+#
+#   1. The committed command collapses from two rows to one. A $line_break left
+#      in the transient profile keeps the blank row.
+#   2. `add_newline` puts a blank row above the prompt, and applies to profile
+#      output too. ftl-transient.zsh strips leading newlines, so this file
+#      can leave add_newline on.
+
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+
+format = """
+$directory\
+$git_branch\
+$git_status\
+$line_break\
+$character"""
+
+right_format = """
+$cmd_duration\
+$time"""
+
+[profiles]
+# One row, no $line_break. Keeps the path.
+transient = """
+[$directory](dimmed)\
+$character"""
+
+# RPROMPT is not touched. To drop it from finished commands, use zsh's own:
+#   setopt transient_rprompt
+
+[directory]
+style = "bold cyan"
+truncation_length = 4
+truncate_to_repo = false
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vicmd_symbol = "[❮](bold yellow)"
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+style = "bold purple"
+
+[git_status]
+format = "([$all_status$ahead_behind]($style) )"
+style = "bold yellow"
+
+[cmd_duration]
+min_time = 500
+format = "[took $duration]($style) "
+style = "yellow"
+
+[time]
+disabled = false
+format = "[$time]($style)"
+style = "bright-black"
+time_format = "%H:%M:%S"

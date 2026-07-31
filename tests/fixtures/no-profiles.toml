@@ -1,0 +1,4 @@
+# No [profiles] table at all, for the missing-profile path. Rendering an unknown
+# profile exits 0 and prints a short prompt, so detection cannot rely on that.
+add_newline = false
+format = "FULL>"

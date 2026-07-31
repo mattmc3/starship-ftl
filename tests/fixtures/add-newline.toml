@@ -1,0 +1,8 @@
+# add_newline on, to cover the leading-newline strip. starship applies it to
+# profile output too, so without the strip every committed command gets a blank
+# row above it.
+add_newline = true
+format = "FULL>"
+
+[profiles]
+transient = "T> "

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Fake starship, so these tests need neither the real binary nor a config file.
+# It reproduces two starship behaviors the library has to handle:
+#
+#   1. add_newline prepends a newline to profile output
+#   2. an unknown profile warns on stderr, prints nothing useful on stdout,
+#      and still exits 0
+#
+# Profile "missing" triggers case 2. Any other name renders a marker recording
+# the arguments received, so tests can assert what was passed through.
+
+set -uo pipefail
+
+profile=""
+width=""
+status=""
+duration=""
+jobs=""
+keymap=""
+
+cmd="${1:-}"
+shift || true
+
+while (($#)); do
+  case "$1" in
+    --profile)          profile="$2"; shift 2 ;;
+    --profile=*)        profile="${1#*=}"; shift ;;
+    --terminal-width)   width="$2"; shift 2 ;;
+    --terminal-width=*) width="${1#*=}"; shift ;;
+    --status)           status="$2"; shift 2 ;;
+    --status=*)         status="${1#*=}"; shift ;;
+    --cmd-duration)     duration="$2"; shift 2 ;;
+    --cmd-duration=*)   duration="${1#*=}"; shift ;;
+    --jobs)             jobs="$2"; shift 2 ;;
+    --jobs=*)           jobs="${1#*=}"; shift ;;
+    --keymap)           keymap="$2"; shift 2 ;;
+    --keymap=*)         keymap="${1#*=}"; shift ;;
+    *)                  shift ;;
+  esac
+done
+
+case "$cmd" in
+  --version) echo "starship 0.0.0-fake"; exit 0 ;;
+esac
+
+if [[ $profile == missing ]]; then
+  echo '[WARN] - (starship::print): Profile "missing" not found' >&2
+  printf '\n'
+  exit 0
+fi
+
+# Leading newline, matching add_newline = true. The library strips it.
+printf '\nP:%s|w:%s|s:%s|d:%s|j:%s|k:%s ' \
+  "$profile" "$width" "$status" "$duration" "$jobs" "$keymap"

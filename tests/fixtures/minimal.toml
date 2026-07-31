@@ -1,0 +1,9 @@
+# Deterministic config for tests that assert on rendered output. Literal markers
+# only, no modules, so results do not depend on cwd, git state, or the clock.
+add_newline = false
+format = "FULL>"
+right_format = "RIGHT>"
+
+[profiles]
+transient = "T> "
+rtransient = "RT> "

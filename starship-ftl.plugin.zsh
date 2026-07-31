@@ -1,2 +1,3 @@
 0=${(%):-%N}
 source ${0:A:h}/ftl-prompt.zsh
+source ${0:A:h}/ftl-transient.zsh

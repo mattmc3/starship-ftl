@@ -1,0 +1,10 @@
+# Full prompt spans rows, transient must not. A literal newline rather than
+# $line_break: "$line_breakLINE2" parses as one unknown variable name and both
+# the break and the text after it disappear.
+add_newline = true
+format = """
+LINE1
+LINE2>"""
+
+[profiles]
+transient = "T> "

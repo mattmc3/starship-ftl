@@ -1,0 +1,60 @@
+# Single-line prompt, for eyeballing how the transient swap looks when the full
+# prompt occupies one row.
+#
+#   ftl-prompt starship /path/to/examples/single-line.toml
+#   ftl-transient on
+#
+# The interesting case here is the right prompt. It is on the same row as the
+# left one, so if the transient profile does not clear it, the finished command
+# keeps a duration and timestamp hanging off the right margin forever.
+
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = false
+
+format = """
+$directory\
+$git_branch\
+$git_status\
+$character"""
+
+right_format = """
+$cmd_duration\
+$time"""
+
+[profiles]
+# The committed line collapses to a single marker. Keep it narrow: this is what
+# every line of scrollback will start with.
+transient = "$character"
+
+# RPROMPT is not touched. To drop it from finished commands, use zsh's own:
+#   setopt transient_rprompt
+
+[directory]
+style = "bold cyan"
+truncation_length = 3
+truncate_to_repo = false
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vicmd_symbol = "[❮](bold yellow)"
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+style = "bold purple"
+
+[git_status]
+format = "([$all_status$ahead_behind]($style) )"
+style = "bold yellow"
+
+[cmd_duration]
+min_time = 500
+format = "[$duration]($style) "
+style = "yellow"
+
+[time]
+disabled = false
+format = "[$time]($style)"
+style = "bright-black"
+time_format = "%H:%M:%S"

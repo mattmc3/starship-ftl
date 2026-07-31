@@ -1,0 +1,11 @@
+# Renders the path, to confirm starship doubles a literal % for zsh. The
+# transient string is assigned straight to PROMPT, where % is an escape.
+add_newline = false
+
+[profiles]
+transient = "$directory"
+
+[directory]
+format = "[$path]($style)"
+truncate_to_repo = false
+truncation_length = 8
