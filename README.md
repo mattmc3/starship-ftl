@@ -1,6 +1,6 @@
 # starship-ftl
 
-> Faster-than-light drive for Zsh prompts
+> A faster-than-light drive for Starship Zsh prompts
 
 > [!WARNING]
 > This is experimental. Prompt drawing is full of edge cases we haven't seen

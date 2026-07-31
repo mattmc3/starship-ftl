@@ -30,15 +30,20 @@
 
 0=${(%):-%N}
 typeset -gUa fpath
-(( ${fpath[(Ie)${0:A:h}/themes]} )) || fpath+=(${0:A:h}/themes)
+fpath=(${0:A:h}/themes $fpath)
 STARSHIP_FTL_VERSION="0.0.1"
 
 autoload -Uz add-zsh-hook promptinit
 zmodload -F zsh/files b:zf_rm 2>/dev/null
 
 ftl-prompt() {
-  _ftl_prompt_main "$@" || return
-  (( ${precmd_functions[(I)_ftl_prompt_clear]} )) || return 0
+  _ftl_prompt_main "$@"
+  local -i ret=$?
+
+  # Check the hook regardless of $ret. A theme can fail after something was
+  # already drawn, and that still has to be erased and still needs the options
+  # below suspended until it is.
+  (( ${precmd_functions[(I)_ftl_prompt_clear]} )) || return $ret
 
   # The drawn prompt leaves the cursor mid-line, and zsh would stamp a
   # PROMPT_EOL_MARK over it ahead of the first precmd. Suspend prompt_cr and
@@ -50,6 +55,19 @@ ftl-prompt() {
   [[ -o prompt_cr ]] && _ftl_prompt_opts+=(prompt_cr)
   [[ -o prompt_sp ]] && _ftl_prompt_opts+=(prompt_sp)
   unsetopt localoptions prompt_cr prompt_sp
+  return $ret
+}
+
+# zsh's `prompt` returns 0 even when a theme's setup function fails, so a broken
+# theme is indistinguishable from a working one by exit status. It does only
+# record prompt_theme when the setup function succeeded, so use that. Clear it
+# first, or a previously loaded theme reads as this one succeeding.
+_ftl_prompt_load_theme() {
+  local theme=$1
+  shift
+  prompt_theme=()
+  prompt $theme "$@"
+  [[ $prompt_theme[1] == $theme ]]
 }
 
 _ftl_prompt_main() {
@@ -59,6 +77,7 @@ _ftl_prompt_main() {
   setopt local_options prompt_subst
 
   local loading= approximate=0
+  local -i ret=0
   while [[ $1 == -* ]]; do
     case $1 in
       -p) loading=$2; approximate=1; shift 2 ;;
@@ -77,8 +96,8 @@ _ftl_prompt_main() {
      ! zmodload zsh/terminfo 2>/dev/null ||
      (( ! (${+terminfo[sc]} && ${+terminfo[rc]} && ${+terminfo[ed]} && ${+terminfo[cuu]}) )); then
     promptinit
-    prompt $theme "$@"
-    return 0
+    _ftl_prompt_load_theme $theme "$@"
+    return $?
   fi
 
   local cursor
@@ -99,10 +118,15 @@ _ftl_prompt_main() {
     print -Pnr -- $loading
     _ftl_prompt_capture
     promptinit
-    prompt $theme "$@"
+    # The approximation is already on screen, so a failing theme still needs the
+    # clear hook below to erase it. Carry the status instead of returning here.
+    _ftl_prompt_load_theme $theme "$@"
+    ret=$?
   else
     promptinit
-    prompt $theme "$@"
+    # Nothing has been drawn yet, so a failing theme can bail out and leave the
+    # shell with whatever prompt it already had.
+    _ftl_prompt_load_theme $theme "$@" || return $?
 
     # The theme's precmd is what fills in the parts of PS1 that change, so run
     # it once before drawing. It runs again for the real prompt, which is the
@@ -113,6 +137,7 @@ _ftl_prompt_main() {
   fi
 
   add-zsh-hook precmd _ftl_prompt_clear
+  return $ret
 }
 
 # Send startup output to a log so it can be replayed above the real prompt,
