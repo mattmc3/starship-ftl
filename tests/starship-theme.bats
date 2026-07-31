@@ -5,9 +5,9 @@
 # Mostly about config resolution, which README documents as a three-step search
 # and is the part a user is most likely to get wrong.
 #
-# Every test clears FPATH as well as STARSHIP_CONFIG. fpath is appended to, so an
-# older prompt_starship_setup earlier on fpath shadows this repo's copy, and the
-# tests silently measure that one instead. That happened while writing these.
+# Every test clears FPATH as well as STARSHIP_CONFIG. Another
+# prompt_starship_setup on fpath, or an exported starship config, otherwise
+# decides the result and these measure the machine rather than this repo.
 
 setup() {
   if ! command -v starship >/dev/null 2>&1; then
