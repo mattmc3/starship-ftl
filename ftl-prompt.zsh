@@ -70,12 +70,13 @@ _ftl_prompt_load_theme() {
   [[ $prompt_theme[1] == $theme ]]
 }
 
+# No `emulate -L zsh` here. It implies LOCAL_OPTIONS, and zsh's `prompt` only
+# applies a theme's requested prompt options when called from a scope without it.
+# With the emulate in place the theme's `subst` never reaches the shell, so a PS1
+# built from a command substitution, which is what starship sets, is displayed
+# literally instead of being expanded. The two prints that need prompt_subst
+# scope it themselves.
 _ftl_prompt_main() {
-  emulate -L zsh
-  # prompt_subst so `print -P` expands the parameters a theme's PS1 is built
-  # from. emulate turns it off, and PS1 is mostly parameters.
-  setopt local_options prompt_subst
-
   local loading= approximate=0
   local -i ret=0
   while [[ $1 == -* ]]; do
@@ -115,7 +116,7 @@ _ftl_prompt_main() {
   echoti sc
 
   if (( approximate )); then
-    print -Pnr -- $loading
+    _ftl_prompt_expand $loading
     _ftl_prompt_capture
     promptinit
     # The approximation is already on screen, so a failing theme still needs the
@@ -132,12 +133,22 @@ _ftl_prompt_main() {
     # it once before drawing. It runs again for the real prompt, which is the
     # price of not having a second prompt definition to maintain.
     (( $+functions[prompt_${theme}_precmd] )) && prompt_${theme}_precmd
-    print -Pnr -- $PS1
+    _ftl_prompt_expand $PS1
     _ftl_prompt_capture
   fi
 
   add-zsh-hook precmd _ftl_prompt_clear
   return $ret
+}
+
+# Draw a prompt string with prompt expansion applied. prompt_subst is needed
+# because a theme's PS1 is mostly parameters, and starship's is a command
+# substitution. Scoped to this function so it cannot leak into the shell or
+# collide with the options a theme asked for.
+_ftl_prompt_expand() {
+  emulate -L zsh
+  setopt prompt_subst
+  print -Pnr -- $1
 }
 
 # Send startup output to a log so it can be replayed above the real prompt,

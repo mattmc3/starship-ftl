@@ -50,7 +50,7 @@ $1"
 
 @test "sourcing twice does not duplicate the fpath entry" {
   run zclean 'source '"${REPO}"'/ftl-prompt.zsh
-print "count=${#${(@M)fpath:#*starship-ftl/themes}}"'
+print "count=${#${(@M)fpath:#'"${REPO}"'/themes}}"'
   [ "$output" = "count=1" ]
 }
 
@@ -73,7 +73,7 @@ print "count=${#${(@M)fpath:#*starship-ftl/themes}}"'
 @test "the plugin entry point loads the same way" {
   run env -u STARSHIP_CONFIG -u FPATH PATH="$PATH" HOME="$HOME" \
     zsh -fc "source ${REPO}/starship-ftl.plugin.zsh
-print \"fn=\${+functions[ftl-prompt]} themes=\${#\${(@M)fpath:#*starship-ftl/themes}}\""
+print \"fn=\${+functions[ftl-prompt]} themes=\${#\${(@M)fpath:#${REPO}/themes}}\""
   [ "$output" = "fn=1 themes=1" ]
 }
 
@@ -93,8 +93,8 @@ done'
 }
 
 @test "a competing theme earlier on fpath does not win" {
-  # The reason for prepending. An abandoned prompt_starship_setup in someone's
-  # dotfiles used to shadow this one with no indication it had happened.
+  # An abandoned prompt_starship_setup in a user's dotfiles must not shadow
+  # this one, which it would do silently.
   run zclean 'mkdir -p ${XDG_CONFIG_HOME}/other
 : > ${XDG_CONFIG_HOME}/other/prompt_starship_setup
 fpath=(${XDG_CONFIG_HOME}/other $fpath)
@@ -106,7 +106,7 @@ print "$fpath[1]"'
 @test "re-sourcing keeps the themes directory first without duplicating it" {
   run zclean 'fpath=(/tmp $fpath)
 source '"${REPO}"'/ftl-prompt.zsh
-print "first=$fpath[1] count=${#${(@M)fpath:#*starship-ftl/themes}}"'
+print "first=$fpath[1] count=${#${(@M)fpath:#'"${REPO}"'/themes}}"'
   [ "$output" = "first=${REPO}/themes count=1" ]
 }
 
@@ -164,6 +164,31 @@ print "cr=${options[promptcr]} sp=${options[promptsp]}"'
   run zconf 'ftl-prompt -p "approx> " starship >/dev/null 2>&1
 print "rc=$? ps1=${PS1:+set}"'
   [ "$output" = "rc=0 ps1=set" ]
+}
+
+# --- the theme's prompt options reach the shell -------------------------------
+
+@test "a theme's requested prompt options are applied" {
+  # zsh's `prompt` only applies prompt_opts when called from a scope without
+  # LOCAL_OPTIONS, so `emulate -L zsh` in _ftl_prompt_main would swallow them.
+  run zconf 'ftl-prompt starship >/dev/null 2>&1
+print "subst=${options[promptsubst]} percent=${options[promptpercent]}"'
+  [ "$output" = "subst=on percent=on" ]
+}
+
+@test "prompt expansion does not leak prompt_subst on its own" {
+  # _ftl_prompt_expand scopes it, so with no theme loaded nothing changes.
+  run zclean 'print "before=${options[promptsubst]}"
+_ftl_prompt_expand "%~" >/dev/null
+print "after=${options[promptsubst]}"'
+  [ "${lines[0]}" = "before=off" ]
+  [ "${lines[1]}" = "after=off" ]
+}
+
+@test "prompt expansion expands a command substitution" {
+  # This is the shape starship's PS1 takes, and the reason prompt_subst matters.
+  run zclean '_ftl_prompt_expand "$(print EXPANDED)"'
+  [ "$output" = "EXPANDED" ]
 }
 
 # --- output capture ----------------------------------------------------------
