@@ -11,6 +11,9 @@
 
 set -uo pipefail
 
+# Optional call counter, for tests that assert how often starship is spawned.
+[[ -n ${STARSHIP_SPY:-} ]] && printf "%s\n" "$*" >> "$STARSHIP_SPY"
+
 profile=""
 width=""
 status=""
