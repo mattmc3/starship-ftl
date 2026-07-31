@@ -1,0 +1,58 @@
+#compdef ftl-prompt
+
+_ftl_prompt_theme_names() {
+  local -a files
+  if (( $+prompt_themes )); then
+    print -rl -- $prompt_themes
+    return
+  fi
+  # promptinit has not run yet, so read the theme files off fpath directly.
+  files=($^fpath/prompt_*_setup(N:t))
+  print -rl -- ${${files#prompt_}%_setup}
+}
+
+_ftl_prompt_starship_configs() {
+  # The theme resolves its argument as either a bare config name or a path to a
+  # .toml. Offer paths only once the word looks like one, or every directory in
+  # the cwd buries the names.
+  if [[ $PREFIX == */* || $PREFIX == *.* ]]; then
+    _files -g '*.toml'
+    return
+  fi
+
+  local -a dirs names
+  dirs=(
+    "${ZDOTDIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/themes"
+    "${XDG_CONFIG_HOME:-$HOME/.config}/starship"
+  )
+  names=($^dirs/*.toml(N:t:r))
+  if (( $#names )); then
+    _describe -t configs 'starship config' names
+  else
+    _files -g '*.toml'
+  fi
+}
+
+local curcontext=$curcontext state
+local -a args
+args=(
+  '-p[draw this approximation immediately, then load the theme behind it]:prompt string:'
+  '1:theme:->themes'
+  '*::theme argument:->themeargs'
+)
+
+_arguments -C -s $args && return
+
+case $state in
+  themes)
+    local -a themes
+    themes=(${(f)"$(_ftl_prompt_theme_names)"})
+    _describe -t themes 'promptinit theme' themes
+    ;;
+  themeargs)
+    # Only the starship theme takes an argument, a config name or path.
+    if [[ ${words[1]} == starship ]]; then
+      _ftl_prompt_starship_configs
+    fi
+    ;;
+esac

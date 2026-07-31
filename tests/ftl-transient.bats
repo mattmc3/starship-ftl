@@ -97,6 +97,19 @@ $1" 2>&1 >/dev/null
   [ "$output" = "no" ]
 }
 
+@test "profile names can be listed, one per line" {
+  # What the completion offers after `ftl-transient on`.
+  run zfix minimal.toml '_ftl_transient_profile_names'
+  [ "${lines[0]}" = "transient" ]
+  [ "${lines[1]}" = "rtransient" ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "listing names with no profiles table produces nothing" {
+  run zfix no-profiles.toml '_ftl_transient_profile_names; print "rc=$?"'
+  [ "$output" = "rc=0" ]
+}
+
 @test "a profile name that is a prefix of another is not a false positive" {
   run zfix minimal.toml '_ftl_transient_profile_exists trans && print yes || print no'
   [ "$output" = "no" ]

@@ -10,7 +10,7 @@ test-file name:
 
 lint:
     #!/usr/bin/env zsh
-    for f in *.zsh themes/prompt_*_setup; do
+    for f in *.zsh themes/prompt_*_setup completions/_*; do
       zsh -n $f || exit 1
       print -r -- "ok  $f"
     done

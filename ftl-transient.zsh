@@ -196,15 +196,25 @@ _ftl_transient_precmd() {
 # indistinguishable from a working one: both exit 0 and print a short prompt.
 # `print-config profiles` dumps the computed [profiles] table, which is
 # unambiguous.
-_ftl_transient_profile_exists() {
+_ftl_transient_profile_names() {
   emulate -L zsh
-  local name=$1 line key
+  local line key
 
   for line in ${(f)"$(starship print-config profiles 2>/dev/null)"}; do
     [[ $line == *=* ]] || continue
     key=${line%%=*}
     key=${key//[[:space:]]/}
     key=${key//[\"\']/}
+    print -r -- $key
+  done
+  return 0
+}
+
+_ftl_transient_profile_exists() {
+  emulate -L zsh
+  local name=$1 key
+
+  for key in ${(f)"$(_ftl_transient_profile_names)"}; do
     [[ $key == $name ]] && return 0
   done
   return 1
