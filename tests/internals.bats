@@ -137,8 +137,6 @@ print "orig=${+functions[_ftl_transient_orig_trapint]}"'
   [ "$output" = "orig=0" ]
 }
 
-# --- TRAPINT -----------------------------------------------------------------
-
 @test "TRAPINT survives precmd returning" {
   # `emulate -L zsh` at the top of the precmd hook implies LOCAL_TRAPS, which
   # drops the TRAPINT it installs as soon as precmd returns. Ctrl-C then stops
@@ -160,6 +158,94 @@ TRAPINT 2
 print "rc=$?"'
   [ "${lines[0]}" = "foreign ran" ]
   [ "${lines[1]}" = "rc=99" ]
+}
+
+# --- surviving another plugin owning zle-line-finish -------------------------
+
+@test "the repair takes over a zle-line-finish another plugin rebound" {
+  # Registered in the chain but unreachable once the widget is replaced outright.
+  run zrun 'zmodload zsh/zle
+foreign() { : }
+zle -N zle-line-finish foreign
+_ftl_transient_repair_line_finish
+print "now=${widgets[zle-line-finish]}"
+print "saved=${widgets[._ftl_transient_orig::zle-line-finish]:-NONE}"'
+  [ "${lines[0]}" = "now=user:_ftl_transient_line_finish" ]
+  [ "${lines[1]}" = "saved=user:foreign" ]
+}
+
+@test "the repair handles a bare function named after the hook" {
+  # The shape the breakage takes in the wild. Widget and function share a name, so
+  # the saved alias must resolve to the function, not back to our wrapper.
+  run zrun 'zmodload zsh/zle
+function zle-line-finish() { : }
+zle -N zle-line-finish
+print "hostile=${widgets[zle-line-finish]}"
+_ftl_transient_repair_line_finish
+print "now=${widgets[zle-line-finish]}"
+print "saved=${widgets[._ftl_transient_orig::zle-line-finish]:-NONE}"'
+  [ "${lines[0]}" = "hostile=user:zle-line-finish" ]
+  [ "${lines[1]}" = "now=user:_ftl_transient_line_finish" ]
+  [ "${lines[2]}" = "saved=user:zle-line-finish" ]
+}
+
+@test "off restores a bare function named after the hook" {
+  run zrun 'zmodload zsh/zle
+function zle-line-finish() { : }
+zle -N zle-line-finish
+_ftl_transient_repair_line_finish
+_ftl_transient_active=1
+_ftl_transient_disable
+print "now=${widgets[zle-line-finish]}"'
+  [ "$output" = "now=user:zle-line-finish" ]
+}
+
+@test "the repair leaves the sanctioned chain alone" {
+  run zrun 'zmodload zsh/zle
+add-zle-hook-widget zle-line-finish _ftl_transient_truncate
+_ftl_transient_repair_line_finish
+print "now=${widgets[zle-line-finish]}"'
+  [ "$output" = "now=user:azhw:zle-line-finish" ]
+}
+
+@test "repairing twice does not nest us inside ourselves" {
+  run zrun 'zmodload zsh/zle
+foreign() { : }
+zle -N zle-line-finish foreign
+_ftl_transient_repair_line_finish
+_ftl_transient_repair_line_finish
+print "saved=${widgets[._ftl_transient_orig::zle-line-finish]}"'
+  [ "$output" = "saved=user:foreign" ]
+}
+
+@test "the repair installs the hook when nothing has bound it" {
+  run zrun 'zmodload zsh/zle
+_ftl_transient_repair_line_finish
+print "now=${widgets[zle-line-finish]:-NONE}"'
+  [ "$output" = "now=user:azhw:zle-line-finish" ]
+}
+
+@test "off hands back a zle-line-finish taken from another plugin" {
+  run zrun 'zmodload zsh/zle
+foreign() { : }
+zle -N zle-line-finish foreign
+_ftl_transient_repair_line_finish
+_ftl_transient_active=1
+_ftl_transient_disable
+print "now=${widgets[zle-line-finish]}"
+print "leftover=${widgets[._ftl_transient_orig::zle-line-finish]:-NONE}"'
+  [ "${lines[0]}" = "now=user:foreign" ]
+  [ "${lines[1]}" = "leftover=NONE" ]
+}
+
+@test "precmd runs the repair, so a later rebind is undone next prompt" {
+  run zrun 'zmodload zsh/zle
+add-zle-hook-widget zle-line-finish _ftl_transient_truncate
+foreign() { : }
+zle -N zle-line-finish foreign
+_ftl_transient_precmd
+print "now=${widgets[zle-line-finish]}"'
+  [ "$output" = "now=user:_ftl_transient_line_finish" ]
 }
 
 # --- send-break wrapping -----------------------------------------------------

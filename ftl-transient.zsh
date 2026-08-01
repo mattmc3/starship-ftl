@@ -130,6 +130,13 @@ _ftl_transient_disable() {
   add-zle-hook-widget -d zle-line-init _ftl_transient_fresh 2>/dev/null
   _ftl_transient_unwrap_send_break
 
+  # Hand back a zle-line-finish we took over from another plugin.
+  if [[ ${widgets[zle-line-finish]:-} == user:_ftl_transient_line_finish ]] &&
+     (( ${+widgets[._ftl_transient_orig::zle-line-finish]} )); then
+    zle -A ._ftl_transient_orig::zle-line-finish zle-line-finish
+    zle -D ._ftl_transient_orig::zle-line-finish
+  fi
+
   # Only remove a TRAPINT that is ours. The chain is built in precmd, so before
   # the first one any trap sitting there belongs to someone else.
   if (( $+functions[_ftl_transient_orig_trapint] )); then
@@ -168,6 +175,8 @@ _ftl_transient_precmd() {
       _ftl_transient_prompt='%# '
     fi
   }
+
+  _ftl_transient_repair_line_finish
 
   # Preserve a TRAPINT someone else installed; ours has to run to catch Ctrl-C,
   # which arrives as a signal and never reaches send-break. Every cycle rather
@@ -286,6 +295,29 @@ _ftl_transient_restore() {
 # gone and the deferred restore has nothing left to undo.
 _ftl_transient_fresh() {
   _ftl_transient_stale=0
+}
+
+# A bare `zle -N zle-line-finish` replaces add-zle-hook-widget's dispatcher,
+# leaving us in its chain but never called. Re-checked every precmd because
+# plugins load in whatever order the user's manager picks.
+_ftl_transient_repair_line_finish() {
+  case ${widgets[zle-line-finish]:-} in
+    user:azhw:zle-line-finish|user:_ftl_transient_line_finish) return 0 ;;
+    # add-zle-hook-widget never took, so let it retry.
+    '') add-zle-hook-widget zle-line-finish _ftl_transient_truncate 2>/dev/null
+        return 0 ;;
+  esac
+
+  # Someone else owns it. Delegate to their binding instead of dropping it.
+  zle -A zle-line-finish ._ftl_transient_orig::zle-line-finish
+  zle -N zle-line-finish _ftl_transient_line_finish
+}
+
+_ftl_transient_line_finish() {
+  _ftl_transient_truncate
+  (( ${+widgets[._ftl_transient_orig::zle-line-finish]} )) &&
+    zle ._ftl_transient_orig::zle-line-finish -f nolast -N -- "$@"
+  return 0
 }
 
 # send-break is a real widget, not a hook, so it cannot go through
