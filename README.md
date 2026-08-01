@@ -32,6 +32,8 @@ the same idea behind powerlevel10k's instant prompt.
 
 ## Installation
 
+### Install with a plugin manager
+
 With [antidote][antidote], add to the top of your `.zsh_plugins.txt`:
 
 ```
@@ -44,7 +46,9 @@ If you want to enable the transient prompt as well, use this:
 mattmc3/starship-ftl post:"ftl-prompt starship; ftl-transient on"
 ```
 
-Or clone and source it manually:
+### Manual installation
+
+If you don't use a plugin manager, you can clone and source this manually:
 
 ```zsh
 git clone https://github.com/mattmc3/starship-ftl ${ZDOTDIR:-$HOME}/.starship-ftl
@@ -54,6 +58,8 @@ source ${ZDOTDIR:-$HOME}/.starship-ftl/starship-ftl.plugin.zsh
 Then, at the very top of your `.zshrc`, after making sure starship is in your path:
 
 ```zsh
+# .zshrc
+path=(/path/to/starship/bin $path)
 source /path/to/starship-ftl/starship-ftl.plugin.zsh
 ftl-prompt starship  # show your starship prompt instantly
 ftl-transient on     # optional: enable transient prompt
