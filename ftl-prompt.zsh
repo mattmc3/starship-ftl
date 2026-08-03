@@ -35,6 +35,7 @@ STARSHIP_FTL_VERSION="0.0.1"
 
 autoload -Uz add-zsh-hook promptinit
 zmodload -F zsh/files b:zf_rm 2>/dev/null
+zmodload -F zsh/system b:sysopen 2>/dev/null
 
 ftl-prompt() {
   _ftl_prompt_main "$@"
@@ -176,13 +177,17 @@ _ftl_prompt_clear() {
     fi
 
     # Back to where the drawn prompt started, wipe from there down, and lay
-    # the replayed startup output in its place. One write, bracketed by
-    # synchronized-update marks, so the terminal never paints the blank
-    # in-between state. The real prompt then lands below the replay.
+    # the replayed startup output in its place. One write, inside a synchronized
+    # update, so the terminal never paints the blank in-between state. The real
+    # prompt then lands below the replay.
     local replay=
     [[ -n $_ftl_prompt_log && -s $_ftl_prompt_log ]] &&
       replay="$(<$_ftl_prompt_log)"$'\n'
-    print -rn -- $'\e[?2026h'${terminfo[rc]}${terminfo[sgr0]}${terminfo[ed]}${replay}$'\e[?2026l'
+    print -rn -- $'\e[?2026h'${terminfo[rc]}${terminfo[sgr0]}${terminfo[ed]}${replay}
+
+    # PS1 is expanded after every precmd hook, and starship's runs a command
+    # substitution, so ending the update here would show the erase on its own.
+    _ftl_prompt_sync_defer || print -rn -- $'\e[?2026l'
 
     if [[ -n $_ftl_prompt_log ]]; then
       if (( $+builtins[zf_rm] )); then
@@ -195,4 +200,52 @@ _ftl_prompt_clear() {
     unset _ftl_prompt_log _ftl_prompt_fd1 _ftl_prompt_fd2 _ftl_prompt_opts
     unfunction _ftl_prompt_clear
   }
+}
+
+# zle-line-init runs with the real prompt already painted, so that is where the
+# update ends. `zle -F` on a descriptor that is always readable backs it up, for
+# a plugin that rebinds the widget out from under us.
+_ftl_prompt_sync_defer() {
+  emulate -L zsh
+  local -i deferred=0
+
+  # Without zsh/zutil loaded, add-zle-hook-widget silently registers nothing.
+  autoload -Uz add-zle-hook-widget
+  zmodload zsh/zutil 2>/dev/null &&
+    add-zle-hook-widget zle-line-init _ftl_prompt_sync_end 2>/dev/null && deferred=1
+
+  typeset -gi _ftl_prompt_sfd=0
+  if (( $+builtins[sysopen] )) &&
+     sysopen -r -o cloexec -u _ftl_prompt_sfd /dev/null 2>/dev/null; then
+    if zle -F $_ftl_prompt_sfd _ftl_prompt_sync_end 2>/dev/null; then
+      deferred=1
+    else
+      exec {_ftl_prompt_sfd}>&-
+      _ftl_prompt_sfd=0
+    fi
+  fi
+
+  (( deferred )) || _ftl_prompt_sync_cleanup
+  return $(( ! deferred ))
+}
+
+# Ends the update the clear opened, so the erase and the redraw arrive together.
+_ftl_prompt_sync_end() {
+  emulate -L zsh
+  print -rn -- $'\e[?2026l'
+  _ftl_prompt_sync_cleanup
+  return 0
+}
+
+# Both go at once, so whichever did not run cannot fire on a restored shell.
+_ftl_prompt_sync_cleanup() {
+  emulate -L zsh
+  add-zle-hook-widget -d zle-line-init _ftl_prompt_sync_end 2>/dev/null
+
+  if (( ${_ftl_prompt_sfd:-0} )); then
+    zle -F $_ftl_prompt_sfd 2>/dev/null
+    exec {_ftl_prompt_sfd}>&-
+  fi
+  unset _ftl_prompt_sfd
+  return 0
 }

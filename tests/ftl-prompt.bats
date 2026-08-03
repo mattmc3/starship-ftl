@@ -5,8 +5,8 @@
 # bats runs with stdout on a pipe, so `[[ -t 1 ]]` is false and ftl-prompt takes
 # its non-drawing branch every time. That covers argument handling, fpath setup,
 # theme discovery and the fallback path, and it cannot cover the drawing itself.
-# The scroll, save, draw, erase and replay need a real terminal and are checked
-# by hand against examples/*.toml.
+# The scroll, save, draw, erase and replay need a real terminal: drawing.bats
+# gets one from zsh/zpty, and the rest is checked by hand against examples/*.toml.
 #
 # Every helper clears FPATH and STARSHIP_CONFIG and pins ZDOTDIR and
 # XDG_CONFIG_HOME. Both leak: an exported STARSHIP_CONFIG decides which config is
