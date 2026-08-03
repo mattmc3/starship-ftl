@@ -102,6 +102,27 @@ EOF
   [ "$(count "$output" '<SYNC-OFF>')" = "1" ]
 }
 
+@test "startup output that is only escape sequences gets no row of its own" {
+  # Terminal.app's shell integration writes an OSC 7 from a precmd registered
+  # before ours, so it lands in the capture log. Replaying it must not push the
+  # prompt down: plain.toml has add_newline off, so any newline here is ours.
+  cat > "${ZD}/.zshrc" <<EOF
+export STARSHIP_CONFIG=${BATS_TEST_DIRNAME}/fixtures/plain.toml
+autoload -Uz add-zsh-hook
+_osc_precmd() { print -rn -- \$'\e]7;file:///tmp\a' }
+add-zsh-hook precmd _osc_precmd
+source ${REPO}/ftl-prompt.zsh
+ftl-prompt starship
+EOF
+  run capture
+  [ "$status" -eq 0 ]
+
+  replay="${output#*<SYNC-ON>}"
+  replay="${replay%%FULL>*}"
+  [[ "$replay" == *"7;file:///tmp"* ]]
+  [[ "$replay" != *$'\n'* ]]
+}
+
 @test "nothing of the drawing is left behind once the prompt is up" {
   # Typed rather than sourced, so it runs after the first precmd. Reading until
   # cr=on: the echoed command line matches hook= before any of it has run.

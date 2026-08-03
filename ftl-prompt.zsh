@@ -152,6 +152,13 @@ _ftl_prompt_expand() {
   print -Pnr -- $1
 }
 
+# Does captured output take up any room on screen?
+_ftl_prompt_visible() {
+  emulate -L zsh
+  setopt extended_glob
+  [[ -n ${${1//$'\e'(\][^$'\a']#$'\a'|\[[0-9;?]#[[:alpha:]]|\(?|?)/}//[[:space:]]/} ]]
+}
+
 # Send startup output to a log so it can be replayed above the real prompt,
 # instead of landing over the drawn prompt and being erased with it.
 _ftl_prompt_capture() {
@@ -181,8 +188,10 @@ _ftl_prompt_clear() {
     # update, so the terminal never paints the blank in-between state. The real
     # prompt then lands below the replay.
     local replay=
-    [[ -n $_ftl_prompt_log && -s $_ftl_prompt_log ]] &&
-      replay="$(<$_ftl_prompt_log)"$'\n'
+    if [[ -n $_ftl_prompt_log && -s $_ftl_prompt_log ]]; then
+      replay="$(<$_ftl_prompt_log)"
+      _ftl_prompt_visible $replay && replay+=$'\n'
+    fi
     print -rn -- $'\e[?2026h'${terminfo[rc]}${terminfo[sgr0]}${terminfo[ed]}${replay}
 
     # PS1 is expanded after every precmd hook, and starship's runs a command

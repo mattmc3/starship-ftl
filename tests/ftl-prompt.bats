@@ -225,6 +225,24 @@ print "rc=$? log=${_ftl_prompt_log:-unset}"'
   [[ "$output" == *"log=unset"* ]]
 }
 
+# --- what counts as output worth a row ---------------------------------------
+
+@test "an escape sequence on its own is not visible output" {
+  # Terminal.app's shell integration writes one of these from its own precmd.
+  run zclean "_ftl_prompt_visible \$'\\e]7;file:///tmp\\a'; print \"rc=\$?\""
+  [ "$output" = "rc=1" ]
+}
+
+@test "colouring around real text is still visible output" {
+  run zclean "_ftl_prompt_visible \$'\\e[1mdirenv: loading\\e[0m'; print \"rc=\$?\""
+  [ "$output" = "rc=0" ]
+}
+
+@test "nothing captured is not visible output" {
+  run zclean '_ftl_prompt_visible ""; print "rc=$?"'
+  [ "$output" = "rc=1" ]
+}
+
 # --- reporting failure -------------------------------------------------------
 
 @test "a theme that cannot load is reported as a failure" {
