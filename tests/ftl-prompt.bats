@@ -282,8 +282,8 @@ printf '[%s]' \"\$PS1\""
 }
 
 @test "a stale prompt_theme does not make a failure look like success" {
-  # `prompt` only records prompt_theme on success, so it is cleared first.
-  # Otherwise a previously loaded theme reads as this one having worked.
+  # prompt_theme is only recorded on success, so it is cleared first. Otherwise
+  # a previously loaded theme reads as this one having worked.
   run env -i PATH=/usr/bin:/bin HOME="$HOME" \
     zsh -fc "source ${LIB}
 prompt_theme=(starship)

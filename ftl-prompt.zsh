@@ -33,9 +33,13 @@ typeset -gUa fpath
 fpath=(${0:A:h}/themes $fpath)
 STARSHIP_FTL_VERSION="0.0.1"
 
-autoload -Uz add-zsh-hook promptinit
+autoload -Uz add-zsh-hook
 zmodload -F zsh/files b:zf_rm 2>/dev/null
 zmodload -F zsh/system b:sysopen 2>/dev/null
+
+# promptinit normally declares these, and this does not run it.
+typeset -ga prompt_theme
+typeset -g prompt_newline=$'\n%{\r%}'
 
 ftl-prompt() {
   _ftl_prompt_main "$@"
@@ -59,24 +63,35 @@ ftl-prompt() {
   return $ret
 }
 
-# zsh's `prompt` returns 0 even when a theme's setup function fails, so a broken
-# theme is indistinguishable from a working one by exit status. It does only
-# record prompt_theme when the setup function succeeded, so use that. Clear it
-# first, or a previously loaded theme reads as this one succeeding.
+# Run a theme's setup function and apply the options it asks for, which is all
+# `prompt` does that matters here. Unlike `prompt`, this returns the setup
+# function's real status. Nothing scans fpath: run promptinit yourself afterwards
+# if you want `prompt -l`, `prompt -p` or `prompt -r`.
 _ftl_prompt_load_theme() {
   local theme=$1
   shift
+
+  # Already defined by a plugin, or an autoload stub resolved off fpath at call
+  # time. A theme with neither fails there, and zsh says so.
+  (( $+functions[prompt_${theme}_setup] )) || autoload -Uz prompt_${theme}_setup
+
+  # How a theme asks for prompt_* options.
+  local -a prompt_opts=()
+
   prompt_theme=()
-  prompt $theme "$@"
-  [[ $prompt_theme[1] == $theme ]]
+  prompt_${theme}_setup "$@" || return 1
+
+  (( $#prompt_opts )) &&
+      setopt noprompt{bang,cr,percent,sp,subst} "prompt${^prompt_opts[@]}"
+
+  prompt_theme=($theme "$@")
+  return 0
 }
 
-# No `emulate -L zsh` here. It implies LOCAL_OPTIONS, and zsh's `prompt` only
-# applies a theme's requested prompt options when called from a scope without it.
-# With the emulate in place the theme's `subst` never reaches the shell, so a PS1
-# built from a command substitution, which is what starship sets, is displayed
-# literally instead of being expanded. The two prints that need prompt_subst
-# scope it themselves.
+# No `emulate -L zsh` here or in _ftl_prompt_load_theme. It implies LOCAL_OPTIONS,
+# which would roll back the setopt applying a theme's prompt_opts, losing `subst`
+# and leaving starship's command-substitution PS1 displayed literally. The two
+# prints that need prompt_subst scope it themselves.
 _ftl_prompt_main() {
   local loading= approximate=0
   local -i ret=0
@@ -97,7 +112,6 @@ _ftl_prompt_main() {
   if [[ ! -o interactive || ! -o zle || ! -t 1 ]] ||
      ! zmodload zsh/terminfo 2>/dev/null ||
      (( ! (${+terminfo[sc]} && ${+terminfo[rc]} && ${+terminfo[ed]} && ${+terminfo[cuu]}) )); then
-    promptinit
     _ftl_prompt_load_theme $theme "$@"
     return $?
   fi
@@ -119,13 +133,11 @@ _ftl_prompt_main() {
   if (( approximate )); then
     _ftl_prompt_expand $loading
     _ftl_prompt_capture
-    promptinit
     # The approximation is already on screen, so a failing theme still needs the
     # clear hook below to erase it. Carry the status instead of returning here.
     _ftl_prompt_load_theme $theme "$@"
     ret=$?
   else
-    promptinit
     # Nothing has been drawn yet, so a failing theme can bail out and leave the
     # shell with whatever prompt it already had.
     _ftl_prompt_load_theme $theme "$@" || return $?
