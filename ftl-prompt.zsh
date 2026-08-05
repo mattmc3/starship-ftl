@@ -31,7 +31,7 @@
 0=${(%):-%N}
 typeset -gUa fpath
 fpath=(${0:A:h}/themes $fpath)
-STARSHIP_FTL_VERSION="0.0.1"
+STARSHIP_FTL_VERSION="0.0.2"
 
 autoload -Uz add-zsh-hook
 zmodload -F zsh/files b:zf_rm 2>/dev/null
