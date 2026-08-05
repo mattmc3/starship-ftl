@@ -1,5 +1,8 @@
 # starship-ftl
 
+[![MIT License](https://img.shields.io/badge/license-MIT-007EC7.svg)](/LICENSE)
+![version](https://img.shields.io/badge/version-v0.0.3-df5e88)
+
 > A faster-than-light drive for Starship Zsh prompts
 
 > [!WARNING]

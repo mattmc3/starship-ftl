@@ -31,7 +31,7 @@
 0=${(%):-%N}
 typeset -gUa fpath
 fpath=(${0:A:h}/themes $fpath)
-STARSHIP_FTL_VERSION="0.0.2"
+STARSHIP_FTL_VERSION="0.0.3"
 
 (( $+functions[_ftl_cache_file] )) || source ${0:A:h}/ftl-cache.zsh
 
