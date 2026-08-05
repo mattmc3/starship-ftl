@@ -193,36 +193,49 @@ print "after=${options[promptsubst]}"'
 
 # --- output capture ----------------------------------------------------------
 
-@test "capture writes its log under XDG_CACHE_HOME" {
-  # The function redirects stdout into the log, so the check has to happen after
-  # the descriptors are restored rather than by printing inside it.
-  run zconf 'mkdir -p ${XDG_CACHE_HOME}
+@test "capture leaves nothing on disk" {
+  # Unlinked as soon as it is open, so a shell that dies before the clear
+  # cannot leave one behind.
+  run zconf 'TMPDIR=${BATS_TEST_TMPDIR:-/tmp}
 _ftl_prompt_capture
-logpath=$_ftl_prompt_log
 exec 1>&$_ftl_prompt_fd1 2>&$_ftl_prompt_fd2
-print "under_cache=${logpath:#${XDG_CACHE_HOME}/*}"
-print "exists=$([[ -f $logpath ]] && print yes || print no)"'
-  [ "${lines[0]}" = "under_cache=" ]
-  [ "${lines[1]}" = "exists=yes" ]
+print "left=${#$(print -rl -- ${TMPDIR}/starship-ftl/*(N))}"'
+  [ "$output" = "left=0" ]
+}
+
+@test "the log lives in a directory of its own under TMPDIR" {
+  run zconf 'TMPDIR=${BATS_TEST_TMPDIR:-/tmp}
+_ftl_prompt_capture
+exec 1>&$_ftl_prompt_fd1 2>&$_ftl_prompt_fd2
+print "dir=$([[ -d ${TMPDIR}/starship-ftl ]] && print yes || print no)"'
+  [ "$output" = "dir=yes" ]
 }
 
 @test "captured output lands in the log rather than on the terminal" {
-  run zconf 'mkdir -p ${XDG_CACHE_HOME}
+  run zconf 'TMPDIR=${BATS_TEST_TMPDIR:-/tmp}
 _ftl_prompt_capture
 print "SWALLOWED"
-logpath=$_ftl_prompt_log
 exec 1>&$_ftl_prompt_fd1 2>&$_ftl_prompt_fd2
-print "log_has=$(<$logpath)"'
+while sysread -i $_ftl_prompt_rfd chunk; do got+=$chunk; done
+print "log_has=${got%%$'"'"'\n'"'"'##}"'
   [ "$output" = "log_has=SWALLOWED" ]
 }
 
-@test "capture survives an unwritable cache directory" {
-  # It gives up on capturing rather than failing the prompt.
-  run zconf 'XDG_CACHE_HOME=/proc/nonexistent-ftl
+@test "the replay descriptor is opened for reading" {
+  run zconf 'TMPDIR=${BATS_TEST_TMPDIR:-/tmp}
 _ftl_prompt_capture
-print "rc=$? log=${_ftl_prompt_log:-unset}"'
+exec 1>&$_ftl_prompt_fd1 2>&$_ftl_prompt_fd2
+print "fd=$(( _ftl_prompt_rfd > 0 ))"'
+  [ "$output" = "fd=1" ]
+}
+
+@test "capture survives an unwritable temp directory" {
+  # It gives up on capturing rather than failing the prompt.
+  run zconf 'TMPDIR=/proc/nonexistent-ftl
+_ftl_prompt_capture
+print "rc=$? fd=${_ftl_prompt_rfd:-unset}"'
   [[ "$output" == *"rc=0"* ]]
-  [[ "$output" == *"log=unset"* ]]
+  [[ "$output" == *"fd=unset"* ]]
 }
 
 # --- what counts as output worth a row ---------------------------------------

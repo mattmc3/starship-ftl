@@ -34,8 +34,8 @@ fpath=(${0:A:h}/themes $fpath)
 STARSHIP_FTL_VERSION="0.0.2"
 
 autoload -Uz add-zsh-hook
-zmodload -F zsh/files b:zf_rm 2>/dev/null
-zmodload -F zsh/system b:sysopen 2>/dev/null
+zmodload -F zsh/files b:zf_rm b:zf_mkdir 2>/dev/null
+zmodload -F zsh/system b:sysopen b:sysread 2>/dev/null
 
 # promptinit normally declares these, and this does not run it.
 typeset -ga prompt_theme
@@ -171,13 +171,43 @@ _ftl_prompt_visible() {
   [[ -n ${${1//$'\e'(\][^$'\a']#$'\a'|\[[0-9;?]#[[:alpha:]]|\(?|?)/}//[[:space:]]/} ]]
 }
 
-# Send startup output to a log so it can be replayed above the real prompt,
-# instead of landing over the drawn prompt and being erased with it.
+# Send startup output to a log, unlinked at once so nothing can be left behind,
+# to replay above the real prompt instead of being erased with the drawn one.
 _ftl_prompt_capture() {
   emulate -L zsh
-  typeset -g _ftl_prompt_log=${XDG_CACHE_HOME:-$HOME/.cache}/starship-ftl.$$
-  { : >| $_ftl_prompt_log } 2>/dev/null || { unset _ftl_prompt_log; return 0 }
-  exec {_ftl_prompt_fd1}>&1 {_ftl_prompt_fd2}>&2 >>$_ftl_prompt_log 2>&1
+
+  # 700 because /tmp is shared when TMPDIR is unset; a foreign dir fails the open.
+  local dir=${${TMPDIR:-/tmp}%/}/starship-ftl
+  [[ -d $dir ]] || _ftl_prompt_mkdir $dir
+
+  # Opened here rather than left to exec, where a failing redirect takes stdout.
+  local log=$dir/log.$$
+  { : >| $log } 2>/dev/null || return 0
+
+  # No way to read it back means nothing to replay, so do not capture at all.
+  if (( $+builtins[sysread] )) && sysopen -r -u _ftl_prompt_rfd $log 2>/dev/null; then
+    exec {_ftl_prompt_fd1}>&1 {_ftl_prompt_fd2}>&2 >>$log 2>&1
+  fi
+  _ftl_prompt_unlink $log
+}
+
+# Both prefer the zsh/files builtin, which does the work without a fork.
+_ftl_prompt_unlink() {
+  if (( $+builtins[zf_rm] )); then
+    zf_rm -f -- $1 2>/dev/null
+  else
+    command rm -f -- $1 2>/dev/null
+  fi
+  return 0
+}
+
+_ftl_prompt_mkdir() {
+  if (( $+builtins[zf_mkdir] )); then
+    zf_mkdir -m 700 -p -- $1 2>/dev/null
+  else
+    command mkdir -m 700 -p -- $1 2>/dev/null
+  fi
+  return 0
 }
 
 _ftl_prompt_clear() {
@@ -199,10 +229,16 @@ _ftl_prompt_clear() {
     # the replayed startup output in its place. One write, inside a synchronized
     # update, so the terminal never paints the blank in-between state. The real
     # prompt then lands below the replay.
-    local replay=
-    if [[ -n $_ftl_prompt_log && -s $_ftl_prompt_log ]]; then
-      replay="$(<$_ftl_prompt_log)"
-      _ftl_prompt_visible $replay && replay+=$'\n'
+    local replay= chunk=
+    if (( ${+_ftl_prompt_rfd} )); then
+      # Never read from, so it sits at the start already. No seek needed.
+      while sysread -i $_ftl_prompt_rfd chunk 2>/dev/null; do replay+=$chunk; done
+      exec {_ftl_prompt_rfd}>&-
+
+      # sysread keeps the trailing newlines `$(<file)` used to drop.
+      setopt extended_glob
+      replay=${replay%%$'\n'##}
+      [[ -n $replay ]] && _ftl_prompt_visible $replay && replay+=$'\n'
     fi
     print -rn -- $'\e[?2026h'${terminfo[rc]}${terminfo[sgr0]}${terminfo[ed]}${replay}
 
@@ -210,15 +246,7 @@ _ftl_prompt_clear() {
     # substitution, so ending the update here would show the erase on its own.
     _ftl_prompt_sync_defer || print -rn -- $'\e[?2026l'
 
-    if [[ -n $_ftl_prompt_log ]]; then
-      if (( $+builtins[zf_rm] )); then
-        zf_rm -f -- $_ftl_prompt_log
-      else
-        command rm -f -- $_ftl_prompt_log
-      fi
-    fi
-
-    unset _ftl_prompt_log _ftl_prompt_fd1 _ftl_prompt_fd2 _ftl_prompt_opts
+    unset _ftl_prompt_rfd _ftl_prompt_fd1 _ftl_prompt_fd2 _ftl_prompt_opts
     unfunction _ftl_prompt_clear
   }
 }
