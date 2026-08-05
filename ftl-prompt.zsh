@@ -42,7 +42,7 @@
 0=${(%):-%N}
 typeset -gUa fpath
 fpath=(${0:A:h}/themes $fpath)
-STARSHIP_FTL_VERSION="0.0.3"
+STARSHIP_FTL_VERSION="0.0.4"
 
 (( $+functions[_ftl_cache_file] )) || source ${0:A:h}/ftl-cache.zsh
 (( $+functions[_ftl_starship_render] )) || source ${0:A:h}/ftl-starship.zsh
