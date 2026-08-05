@@ -4,6 +4,8 @@
 # No starship binary needed.
 
 setup() {
+  # Keep every cached starship answer inside this test, not in the real cache.
+  export XDG_CACHE_HOME="${BATS_TEST_TMPDIR}/cache"
   REPO="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   PLUGIN="${REPO}/starship-ftl.plugin.zsh"
 }

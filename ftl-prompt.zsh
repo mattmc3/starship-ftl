@@ -33,6 +33,8 @@ typeset -gUa fpath
 fpath=(${0:A:h}/themes $fpath)
 STARSHIP_FTL_VERSION="0.0.2"
 
+(( $+functions[_ftl_cache_file] )) || source ${0:A:h}/ftl-cache.zsh
+
 autoload -Uz add-zsh-hook
 zmodload -F zsh/files b:zf_rm b:zf_mkdir 2>/dev/null
 zmodload -F zsh/system b:sysopen b:sysread 2>/dev/null

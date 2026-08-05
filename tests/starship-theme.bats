@@ -10,6 +10,8 @@
 # decides the result and these measure the machine rather than this repo.
 
 setup() {
+  # Keep every cached starship answer inside this test, not in the real cache.
+  export XDG_CACHE_HOME="${BATS_TEST_TMPDIR}/cache"
   if ! command -v starship >/dev/null 2>&1; then
     skip "starship is not installed"
   fi

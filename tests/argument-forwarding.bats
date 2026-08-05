@@ -11,6 +11,8 @@
 # against the real binary.
 
 setup() {
+  # Keep every cached starship answer inside this test, not in the real cache.
+  export XDG_CACHE_HOME="${BATS_TEST_TMPDIR}/cache"
   REPO="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   LIB="${REPO}/ftl-transient.zsh"
   FAKEBIN="${BATS_TEST_DIRNAME}/fixtures/bin"

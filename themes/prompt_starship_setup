@@ -24,7 +24,23 @@ if [[ -n "$1" ]]; then
   (( $#configs )) && export STARSHIP_CONFIG=$configs[1]
 fi
 
-# Initialize starship.
-source <(starship init zsh)
+# starship's init sets PROMPT2 from a command substitution, spawning starship a
+# second time. Write the value in literally instead. A starship that stops
+# emitting that line is left alone, and just keeps the spawn.
+_ftl_starship_init() {
+  local init continuation
+  init=$(starship init zsh) || return 1
+  continuation=$(starship prompt --continuation)
+  print -r -- ${init/PROMPT2=\"\$(*)\"/PROMPT2=${(qqq)continuation}}
+}
+
+# Sourced out here, not in a helper: the init sets options that have to reach
+# the shell. No cache when this theme is used on its own, so fall back to live.
+if (( $+functions[_ftl_cache_file] )) &&
+   _ftl_cache_file starship-init _ftl_starship_init; then
+  source $REPLY
+else
+  source <(starship init zsh)
+fi
 
 #}

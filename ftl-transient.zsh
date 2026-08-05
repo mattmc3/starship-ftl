@@ -63,6 +63,9 @@ zmodload zsh/parameter 2>/dev/null || return 1
 zmodload zsh/zutil || return 1
 autoload -Uz add-zsh-hook add-zle-hook-widget
 
+0=${(%):-%N}
+(( $+functions[_ftl_cache_file] )) || source ${0:A:h}/ftl-cache.zsh
+
 typeset -g  _ftl_transient_profile=
 typeset -g  _ftl_transient_prompt=
 typeset -gi _ftl_transient_fd=0
@@ -199,13 +202,33 @@ _ftl_transient_precmd() {
   }
 }
 
-# Ask starship what profiles it has, rather than rendering one and inspecting
-# the result. An unknown profile is not a failing exit and its complaint does
-# not reliably reach stderr, so `starship prompt --profile bogus` is
-# indistinguishable from a working one: both exit 0 and print a short prompt.
-# `print-config profiles` dumps the computed [profiles] table, which is
-# unambiguous.
+# Sets reply to the profile names. An array, not stdout, so the cache hit forks
+# nothing, which is the whole point of it.
+_ftl_transient_profile_load() {
+  emulate -L zsh
+
+  if (( $+functions[_ftl_cache_file] )) &&
+     _ftl_cache_file starship-profiles _ftl_transient_profile_names_live; then
+    _ftl_cache_lines $REPLY
+    return 0
+  fi
+
+  typeset -ga reply=(${(f)"$(_ftl_transient_profile_names_live)"})
+  return 0
+}
+
+# One name per line, for the completion and for the cache.
 _ftl_transient_profile_names() {
+  emulate -L zsh
+  local -a reply
+  _ftl_transient_profile_load
+  (( $#reply )) && print -rl -- $reply
+  return 0
+}
+
+# Read the table rather than rendering a profile: `prompt --profile bogus` exits
+# 0 and prints, so a typo is indistinguishable from a working one.
+_ftl_transient_profile_names_live() {
   emulate -L zsh
   local line key
 
@@ -221,12 +244,11 @@ _ftl_transient_profile_names() {
 
 _ftl_transient_profile_exists() {
   emulate -L zsh
-  local name=$1 key
+  local -a reply
+  _ftl_transient_profile_load
 
-  for key in ${(f)"$(_ftl_transient_profile_names)"}; do
-    [[ $key == $name ]] && return 0
-  done
-  return 1
+  # (Ie) is an exact string match, so a profile name is never read as a pattern.
+  (( ${reply[(Ie)$1]} ))
 }
 
 # add_newline defaults to true and applies to profile output as well, which

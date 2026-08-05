@@ -128,6 +128,29 @@ ftl-prompt starship
 autoload -Uz promptinit && promptinit
 ```
 
+### Cache
+
+Every question this asks starship is a process spawn, and those spawns are most
+of what it costs at startup. The answers are cached under
+`${XDG_CACHE_HOME:-~/.cache}/starship-ftl`, keyed on the size and modification
+time of the starship binary and your config, so editing `starship.toml`
+invalidates the cache on your next shell.
+
+Two edits slip past that key: a config restored from a backup or copied with
+`cp -p`, which keeps its old timestamp, and one landing in the same timestamp
+tick as the previous edit. If your prompt ever disagrees with your config, rule
+that out first:
+
+```zsh
+rm -rf ${XDG_CACHE_HOME:-~/.cache}/starship-ftl
+```
+
+To ask starship every time instead, before calling `ftl-prompt`:
+
+```zsh
+zstyle ':starship-ftl:' cache no
+```
+
 ## Transient prompt
 
 Replace the prompt on a finished command with a short one, so scrollback reads
