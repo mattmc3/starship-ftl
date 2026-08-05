@@ -13,15 +13,15 @@
 # When loaded through the prompt command, these prompt_* options will be enabled
 prompt_opts=(cr percent sp subst)
 
-# Set the starship config based on an argument if one is provided.
-# (N-.) => null glob, follow symlinks, match files
+# Set the starship config based on an argument if one is provided. The lookup
+# lives in ftl-starship.zsh so ftl-prompt can resolve the same config before the
+# theme loads, which is what `ftl-prompt -P` renders against.
 if [[ -n "$1" ]]; then
-  local -a configs=(
-    "$1"(N-.)
-    "${ZDOTDIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/themes/${1}.toml"(N-.)
-    "${XDG_CONFIG_HOME:-$HOME/.config}/starship/${1}.toml"(N-.)
-  )
-  (( $#configs )) && export STARSHIP_CONFIG=$configs[1]
+  # Sourced already when this repo's ftl-prompt.zsh is in play, so this is for
+  # the theme used on its own. %x, not %N: autoloaded, %N is the function name.
+  0=${(%):-%x}
+  (( $+functions[_ftl_starship_config] )) || source ${0:A:h:h}/ftl-starship.zsh
+  _ftl_starship_config "$1"
 fi
 
 # starship's init sets PROMPT2 from a command substitution, spawning starship a

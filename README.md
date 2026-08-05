@@ -31,6 +31,8 @@ the same idea behind powerlevel10k's instant prompt.
 - Allows you to also set your cursor style up front instead of waiting for
   your config to load
 - Works with starship out of the box, or with any `promptinit` theme you build
+- The prompt drawn up front can come from your `starship.toml`, so there is no
+  second prompt definition to keep in sync
 - Optional transient prompt: finished commands collapse to a short prompt
 
 ## Installation
@@ -94,6 +96,36 @@ ftl-prompt -p '%~ %# ' starship
 ```
 
 For best results, make the approximation resemble your real prompt.
+
+### Drawing the approximation from your config
+
+With starship, the approximation can come out of `starship.toml` instead of a
+string, so there is only one prompt definition to keep in sync. `-P` draws the
+`ftl-prompt` profile:
+
+```zsh
+ftl-prompt -P starship
+```
+
+```toml
+[profiles]
+# Drawn by starship-ftl before the real prompt is ready. Same shape as `format`,
+# minus anything that has to shell out, git especially, so the cost stays flat
+# no matter how big the repo is.
+ftl-prompt = """\
+$directory\
+$python$character\
+"""
+```
+
+`-P` is for the starship theme only, and it's an alternative to `-p`, not an
+addition. A config with no `ftl-prompt` profile gets a message and the real
+prompt, the same as leaving the flag off.
+
+Only the left prompt is drawn. A right prompt appears when the real one does.
+
+This costs one starship call before anything is on screen, which `-p` does not,
+and both are far cheaper than loading the theme first.
 
 ### Cursor style
 

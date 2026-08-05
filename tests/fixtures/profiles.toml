@@ -1,0 +1,7 @@
+# Deterministic config for the -P tests. Literal markers only, so the drawn
+# bytes are the same anywhere.
+add_newline = false
+format = "FULL>"
+
+[profiles]
+ftl-prompt = "L>"

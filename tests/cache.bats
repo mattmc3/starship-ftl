@@ -162,41 +162,41 @@ print \"P1=\${PROMPT:+set}\""
 # --- transient profiles ------------------------------------------------------
 
 @test "profile names are cached, and the cached list matches the live one" {
-  run transient '_ftl_transient_profile_names_live'
+  run transient '_ftl_starship_profile_names_live'
   live="$output"
   [ "$live" != "" ]
 
   : > "$SPY"
-  run transient '_ftl_transient_profile_names'
+  run transient '_ftl_starship_profile_names'
   [ "$output" = "$live" ]
 
   : > "$SPY"
-  run transient '_ftl_transient_profile_names'
+  run transient '_ftl_starship_profile_names'
   [ "$output" = "$live" ]
   [ "$(spy_count)" -eq 0 ]
 }
 
 @test "editing the config invalidates the cached profile names" {
-  transient '_ftl_transient_profile_names' >/dev/null
+  transient '_ftl_starship_profile_names' >/dev/null
   : > "$SPY"
 
   printf 'add_newline = false\nformat = "EDITED>"\nmore = "padding"\n' > "$CFG"
-  transient '_ftl_transient_profile_names' >/dev/null
+  transient '_ftl_starship_profile_names' >/dev/null
   [ "$(spy_count)" -ge 1 ]
 }
 
 @test "a config with no profiles caches an empty answer and stays empty" {
-  run transient '_ftl_transient_profile_names; print "rc=$?"'
+  run transient '_ftl_starship_profile_names; print "rc=$?"'
   [ "${lines[0]}" = "transient" ]
 
   # An empty answer is still an answer, so it has to cache and read back empty
   # rather than as one blank line.
   CFG="${BATS_TEST_TMPDIR}/none.toml"
   printf 'add_newline = false\n' > "$CFG"
-  run transient '_ftl_transient_profile_names; print "rc=$?"'
+  run transient '_ftl_starship_profile_names; print "rc=$?"'
   [ "$output" = "rc=0" ]
 
-  run transient '_ftl_transient_profile_names; print "rc=$?"'
+  run transient '_ftl_starship_profile_names; print "rc=$?"'
   [ "$output" = "rc=0" ]
 }
 

@@ -43,6 +43,15 @@ zconf() {
 $1"
 }
 
+# With a config that defines the ftl-prompt profile.
+zprof() {
+  env -u ZDOTDIR -u FPATH PATH="$PATH" HOME="$HOME" \
+      STARSHIP_CONFIG="${FIX}/${2:-profiles.toml}" \
+      XDG_CACHE_HOME="${BATS_TEST_TMPDIR}/cache/${2:-profiles.toml}" \
+      zsh -fc "source ${LIB} || exit 1
+$1"
+}
+
 # --- fpath and loading -------------------------------------------------------
 
 @test "sourcing puts the themes directory on fpath" {
@@ -166,6 +175,61 @@ print "cr=${options[promptcr]} sp=${options[promptsp]}"'
   run zconf 'ftl-prompt -p "approx> " starship >/dev/null 2>&1
 print "rc=$? ps1=${PS1:+set}"'
   [ "$output" = "rc=0 ps1=set" ]
+}
+
+@test "-P is accepted and ignored when nothing is drawn" {
+  run zprof 'ftl-prompt -P starship >/dev/null 2>&1
+print "rc=$? ps1=${PS1:+set}"'
+  [ "$output" = "rc=0 ps1=set" ]
+}
+
+# --- -P ----------------------------------------------------------------------
+
+@test "-P is refused for a theme that is not starship" {
+  # The profile it reads is starship's, so there is nothing to render for
+  # anything else and silently drawing nothing would be worse.
+  run zprof 'ftl-prompt -P notstarship 2>/dev/null; print "rc=$?"'
+  [ "$output" = "rc=1" ]
+}
+
+@test "-p and -P together is an error" {
+  run zprof 'ftl-prompt -p "approx> " -P starship 2>/dev/null; print "rc=$?"'
+  [ "$output" = "rc=1" ]
+}
+
+@test "-P without a theme after it is an error" {
+  run zprof 'ftl-prompt -P; print "rc=$?"'
+  [ "$output" = "rc=1" ]
+}
+
+@test "-P renders the ftl-prompt profile" {
+  run zprof '_ftl_prompt_profile_render; print "rc=$? drawn=$REPLY"'
+  [ "$output" = "rc=0 drawn=L>" ]
+}
+
+@test "a config with no such profile falls back instead of drawing a blank" {
+  # `starship prompt --profile bogus` exits 0 and prints, so the name is checked
+  # against the table rather than trusted to fail.
+  run zprof '_ftl_prompt_profile_render 2>/dev/null; print "rc=$?"' no-profiles.toml
+  [ "$output" = "rc=1" ]
+}
+
+@test "a missing profile says which one and what happens instead" {
+  run zprof '_ftl_prompt_profile_render 2>&1 >/dev/null' no-profiles.toml
+  [[ "$output" == *"no starship profile 'ftl-prompt'"* ]]
+  [[ "$output" == *"drawing the real prompt"* ]]
+}
+
+@test "the config argument is resolved before the profile is rendered" {
+  # The theme exports STARSHIP_CONFIG, but it loads after the draw, so without
+  # this the profile would come out of whichever config starship defaults to.
+  run zclean 'mkdir -p ${XDG_CONFIG_HOME}/starship
+print -l "add_newline = false" "format = \"X\"" "[profiles]" "ftl-prompt = \"NAMED>\"" \
+  > ${XDG_CONFIG_HOME}/starship/named.toml
+ftl-prompt -P starship named >/dev/null 2>&1
+_ftl_prompt_profile_render
+print "drawn=$REPLY"'
+  [ "$output" = "drawn=NAMED>" ]
 }
 
 # --- the theme's prompt options reach the shell -------------------------------

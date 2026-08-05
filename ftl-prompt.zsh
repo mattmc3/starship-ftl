@@ -18,6 +18,17 @@
 # -p draws an approximation immediately and loads the theme behind it:
 #   ftl-prompt -p '%~ %# ' powerlevel10k
 #
+# With starship, -p's approximation can come out of the config instead, so there
+# is only one prompt definition to keep in sync. -P draws the ftl-prompt profile:
+#   ftl-prompt -P starship
+#
+#   # starship.toml
+#   [profiles]
+#   ftl-prompt = "$directory$character"
+#
+# Leave out of those anything that has to shell out, git especially, and the
+# cost stays flat however big the repository is.
+#
 # Anything printed during startup, direnv and errors included, is captured and
 # replayed above the real prompt once loading finishes.
 #
@@ -34,6 +45,7 @@ fpath=(${0:A:h}/themes $fpath)
 STARSHIP_FTL_VERSION="0.0.3"
 
 (( $+functions[_ftl_cache_file] )) || source ${0:A:h}/ftl-cache.zsh
+(( $+functions[_ftl_starship_render] )) || source ${0:A:h}/ftl-starship.zsh
 
 autoload -Uz add-zsh-hook
 zmodload -F zsh/files b:zf_rm b:zf_mkdir 2>/dev/null
@@ -95,19 +107,35 @@ _ftl_prompt_load_theme() {
 # and leaving starship's command-substitution PS1 displayed literally. The two
 # prints that need prompt_subst scope it themselves.
 _ftl_prompt_main() {
-  local loading= approximate=0
-  local -i ret=0
+  local loading=
+  local -i approximate=0 profiled=0 ret=0
   while [[ $1 == -* ]]; do
     case $1 in
       -p) loading=$2; approximate=1; shift 2 ;;
+      -P) profiled=1; shift ;;
       --) shift; break ;;
       *)  return 1 ;;
     esac
   done
 
+  if (( approximate && profiled )); then
+    print -ru2 -- "ftl-prompt: -p draws a string and -P a profile, so use one or the other"
+    return 1
+  fi
+
   local theme=$1
   [[ -n $theme ]] || return 1
   shift
+
+  if (( profiled )); then
+    if [[ $theme != starship ]]; then
+      print -ru2 -- "ftl-prompt: -P only works with the starship theme"
+      return 1
+    fi
+    # Before rendering, so a profile is read out of the config the theme is
+    # about to load rather than whichever one starship would default to.
+    _ftl_starship_config $1
+  fi
 
   # Drawing needs an interactive shell on a terminal that can save, restore and
   # erase. Without all of that, just set the theme the ordinary way.
@@ -126,13 +154,31 @@ _ftl_prompt_main() {
     [[ $cursor == <0-6> ]] && print -rn -- $'\e['$cursor' q'
   fi
 
+  # Rendered before anything is on screen, so a config that cannot answer falls
+  # back to the ordinary path with nothing to erase.
+  local drawn=
+  if (( profiled )); then
+    if _ftl_prompt_profile_render; then
+      drawn=$REPLY
+    else
+      profiled=0
+    fi
+  fi
+
   # Scroll now, before saving, so the saved position stays valid even when the
   # prompt lands at the bottom of the screen.
   print -n -- ${(pl.10..\n.)}
   echoti cuu 10
   echoti sc
 
-  if (( approximate )); then
+  if (( profiled )); then
+    _ftl_prompt_expand $drawn
+    _ftl_prompt_capture
+    # Same as -p below: what is on screen came from the config rather than the
+    # theme, so a failing theme still needs the clear hook to erase it.
+    _ftl_prompt_load_theme $theme "$@"
+    ret=$?
+  elif (( approximate )); then
     _ftl_prompt_expand $loading
     _ftl_prompt_capture
     # The approximation is already on screen, so a failing theme still needs the
@@ -164,6 +210,33 @@ _ftl_prompt_expand() {
   emulate -L zsh
   setopt prompt_subst
   print -Pnr -- $1
+}
+
+# Sets REPLY to the ftl-prompt profile, rendered out of the starship config the
+# theme is about to load. Non-zero means it could not, and the caller draws the
+# theme's own prompt instead. Warnings go to the terminal rather than into the
+# captured startup output, which is the last place a user would think to look.
+_ftl_prompt_profile_render() {
+  emulate -L zsh
+  typeset -g REPLY=
+
+  (( $+commands[starship] )) || {
+    print -ru2 -- "ftl-prompt: starship not found in path"
+    return 1
+  }
+
+  # Checked against the table rather than trusted to fail: `starship prompt
+  # --profile bogus` exits 0 and prints, so a typo would draw silent nonsense.
+  if ! _ftl_starship_profile_exists ftl-prompt; then
+    print -ru2 -- "ftl-prompt: no starship profile 'ftl-prompt', drawing the real prompt"
+    print -ru2 -- "ftl-prompt: add [profiles] to your starship.toml"
+    return 1
+  fi
+
+  # The blank line add_newline puts above it stays, because the real prompt
+  # replacing this one gets it too.
+  REPLY=$(_ftl_starship_render ftl-prompt)
+  return 0
 }
 
 # Does captured output take up any room on screen?

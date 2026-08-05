@@ -125,6 +125,54 @@ EOF
   [[ "$replay" != *$'\n'* ]]
 }
 
+@test "-P draws the ftl-prompt profile instead of the theme's own prompt" {
+  # profiles.toml renders L> from the profile and FULL> from `format`, so the
+  # two are told apart by what is drawn before the erase.
+  cat > "${ZD}/.zshrc" <<EOF
+export STARSHIP_CONFIG=${BATS_TEST_DIRNAME}/fixtures/profiles.toml
+source ${REPO}/ftl-prompt.zsh
+ftl-prompt -P starship
+EOF
+  run capture
+  [ "$status" -eq 0 ]
+
+  drawn="${output#*<ESC>7}"
+  drawn="${drawn%%<SYNC-ON>*}"
+  [ "$drawn" = "L>" ]
+}
+
+@test "the drawn profile is still erased in one frame" {
+  cat > "${ZD}/.zshrc" <<EOF
+export STARSHIP_CONFIG=${BATS_TEST_DIRNAME}/fixtures/profiles.toml
+source ${REPO}/ftl-prompt.zsh
+ftl-prompt -P starship
+EOF
+  run capture
+  [ "$status" -eq 0 ]
+  [ "$(count "$output" '<SYNC-ON>')" = "1" ]
+  [ "$(count "$output" '<SYNC-OFF>')" = "1" ]
+
+  frame="${output#*<SYNC-ON>}"
+  frame="${frame%%<SYNC-OFF>*}"
+  [[ "$frame" == *"FULL>"* ]]
+}
+
+@test "a profile that is not in the config draws the real prompt instead" {
+  # plain.toml has no [profiles], so -P has nothing to render and the run has to
+  # come out the same as one without it.
+  cat > "${ZD}/.zshrc" <<EOF
+export STARSHIP_CONFIG=${BATS_TEST_DIRNAME}/fixtures/plain.toml
+source ${REPO}/ftl-prompt.zsh
+ftl-prompt -P starship
+EOF
+  run capture
+  [ "$status" -eq 0 ]
+
+  drawn="${output#*<ESC>7}"
+  drawn="${drawn%%<SYNC-ON>*}"
+  [ "$drawn" = "FULL>" ]
+}
+
 @test "nothing of the drawing is left behind once the prompt is up" {
   # Typed rather than sourced, so it runs after the first precmd. Reading until
   # cr=on: the echoed command line matches hook= before any of it has run.

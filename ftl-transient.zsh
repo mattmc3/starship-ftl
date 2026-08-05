@@ -65,6 +65,7 @@ autoload -Uz add-zsh-hook add-zle-hook-widget
 
 0=${(%):-%N}
 (( $+functions[_ftl_cache_file] )) || source ${0:A:h}/ftl-cache.zsh
+(( $+functions[_ftl_starship_render] )) || source ${0:A:h}/ftl-starship.zsh
 
 typeset -g  _ftl_transient_profile=
 typeset -g  _ftl_transient_prompt=
@@ -110,7 +111,7 @@ _ftl_transient_enable() {
 
   # Check the profile once here, so a typo produces one clear message instead of
   # a silently empty prompt on every command from now on.
-  if _ftl_transient_profile_exists $profile; then
+  if _ftl_starship_profile_exists $profile; then
     _ftl_transient_profile=$profile
   else
     print -ru2 -- "ftl-transient: no starship profile '$profile', using '%# '"
@@ -202,77 +203,12 @@ _ftl_transient_precmd() {
   }
 }
 
-# Sets reply to the profile names. An array, not stdout, so the cache hit forks
-# nothing, which is the whole point of it.
-_ftl_transient_profile_load() {
-  emulate -L zsh
-
-  if (( $+functions[_ftl_cache_file] )) &&
-     _ftl_cache_file starship-profiles _ftl_transient_profile_names_live; then
-    _ftl_cache_lines $REPLY
-    return 0
-  fi
-
-  typeset -ga reply=(${(f)"$(_ftl_transient_profile_names_live)"})
-  return 0
-}
-
-# One name per line, for the completion and for the cache.
-_ftl_transient_profile_names() {
-  emulate -L zsh
-  local -a reply
-  _ftl_transient_profile_load
-  (( $#reply )) && print -rl -- $reply
-  return 0
-}
-
-# Read the table rather than rendering a profile: `prompt --profile bogus` exits
-# 0 and prints, so a typo is indistinguishable from a working one.
-_ftl_transient_profile_names_live() {
-  emulate -L zsh
-  local line key
-
-  for line in ${(f)"$(starship print-config profiles 2>/dev/null)"}; do
-    [[ $line == *=* ]] || continue
-    key=${line%%=*}
-    key=${key//[[:space:]]/}
-    key=${key//[\"\']/}
-    print -r -- $key
-  done
-  return 0
-}
-
-_ftl_transient_profile_exists() {
-  emulate -L zsh
-  local -a reply
-  _ftl_transient_profile_load
-
-  # (Ie) is an exact string match, so a profile name is never read as a pattern.
-  (( ${reply[(Ie)$1]} ))
-}
-
 # add_newline defaults to true and applies to profile output as well, which
 # would leave a blank line above every committed command. Strip leading
 # newlines rather than making every user set add_newline = false.
 _ftl_transient_render() {
   emulate -L zsh
-  local out
-  # STARSHIP_SHELL is what tells starship to double a literal % and to wrap escape
-  # sequences in %{ %}, both of which PROMPT needs. `starship init zsh` exports it,
-  # but this renders for PROMPT either way, so do not depend on that having run.
-  out=$(STARSHIP_SHELL=zsh starship prompt --profile $1 \
-          --terminal-width="$COLUMNS" \
-          --status="${STARSHIP_CMD_STATUS:-0}" \
-          --pipestatus="${STARSHIP_PIPE_STATUS[*]:-}" \
-          --cmd-duration="${STARSHIP_DURATION:-0}" \
-          --jobs="${STARSHIP_JOBS_COUNT:-0}" \
-          --keymap="${KEYMAP:-}" 2>/dev/null)
-  # Not ${out##$'\n'##}: the `##` repeat operator needs EXTENDED_GLOB, which
-  # the emulate above turns off, so that form silently strips nothing.
-  while [[ $out == $'\n'* ]]; do
-    out=${out#$'\n'}
-  done
-  print -rn -- $out
+  _ftl_starship_render $1 oneline
 }
 
 _ftl_transient_truncate() {

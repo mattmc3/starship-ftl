@@ -15,8 +15,8 @@ fi
 # starship.toml actually defines rather than a hardcoded "transient".
 if [[ $words[2] == on ]] && (( CURRENT == 3 )); then
   local -a profiles
-  if (( $+functions[_ftl_transient_profile_names] )); then
-    profiles=(${(f)"$(_ftl_transient_profile_names)"})
+  if (( $+functions[_ftl_starship_profile_names] )); then
+    profiles=(${(f)"$(_ftl_starship_profile_names)"})
   fi
   if (( $#profiles )); then
     _describe -t profiles 'starship profile' profiles

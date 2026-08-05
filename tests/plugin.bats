@@ -54,7 +54,7 @@ print "${#${(@M)fpath:#'"${REPO}"'/completions}}"'
 @test "the profile completion uses a function the plugin actually defines" {
   # The completion offers starship profiles by calling into the library. If that
   # name changes, completion silently falls back to no suggestions.
-  run zplug 'print "${+functions[_ftl_transient_profile_names]}"'
+  run zplug 'print "${+functions[_ftl_starship_profile_names]}"'
   [ "$output" = "1" ]
-  grep -q '_ftl_transient_profile_names' "${REPO}/completions/_ftl-transient"
+  grep -q '_ftl_starship_profile_names' "${REPO}/completions/_ftl-transient"
 }

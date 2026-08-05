@@ -80,40 +80,40 @@ $1" 2>&1 >/dev/null
 # --- profile detection -------------------------------------------------------
 
 @test "an existing profile is detected" {
-  run zfix minimal.toml '_ftl_transient_profile_exists transient && print yes || print no'
+  run zfix minimal.toml '_ftl_starship_profile_exists transient && print yes || print no'
   [ "$output" = "yes" ]
 }
 
 @test "a second profile in the same table is detected" {
-  run zfix minimal.toml '_ftl_transient_profile_exists rtransient && print yes || print no'
+  run zfix minimal.toml '_ftl_starship_profile_exists rtransient && print yes || print no'
   [ "$output" = "yes" ]
 }
 
 @test "a missing profile is not detected" {
-  run zfix minimal.toml '_ftl_transient_profile_exists nosuchprofile && print yes || print no'
+  run zfix minimal.toml '_ftl_starship_profile_exists nosuchprofile && print yes || print no'
   [ "$output" = "no" ]
 }
 
 @test "no profiles table at all means nothing is detected" {
-  run zfix no-profiles.toml '_ftl_transient_profile_exists transient && print yes || print no'
+  run zfix no-profiles.toml '_ftl_starship_profile_exists transient && print yes || print no'
   [ "$output" = "no" ]
 }
 
 @test "profile names can be listed, one per line" {
   # What the completion offers after `ftl-transient on`.
-  run zfix minimal.toml '_ftl_transient_profile_names'
+  run zfix minimal.toml '_ftl_starship_profile_names'
   [ "${lines[0]}" = "transient" ]
   [ "${lines[1]}" = "rtransient" ]
   [ "${#lines[@]}" -eq 2 ]
 }
 
 @test "listing names with no profiles table produces nothing" {
-  run zfix no-profiles.toml '_ftl_transient_profile_names; print "rc=$?"'
+  run zfix no-profiles.toml '_ftl_starship_profile_names; print "rc=$?"'
   [ "$output" = "rc=0" ]
 }
 
 @test "a profile name that is a prefix of another is not a false positive" {
-  run zfix minimal.toml '_ftl_transient_profile_exists trans && print yes || print no'
+  run zfix minimal.toml '_ftl_starship_profile_exists trans && print yes || print no'
   [ "$output" = "no" ]
 }
 
@@ -332,13 +332,13 @@ print "unique=${#${(@u)fds}} first=$fds[1]"'
 
 @test "examples/single-line.toml defines the transient profile" {
   run env STARSHIP_CONFIG="${REPO}/examples/single-line.toml" \
-    zsh -fc "source ${LIB}; _ftl_transient_profile_exists transient && print yes || print no"
+    zsh -fc "source ${LIB}; _ftl_starship_profile_exists transient && print yes || print no"
   [ "$output" = "yes" ]
 }
 
 @test "examples/multi-line.toml defines the transient profile" {
   run env STARSHIP_CONFIG="${REPO}/examples/multi-line.toml" \
-    zsh -fc "source ${LIB}; _ftl_transient_profile_exists transient && print yes || print no"
+    zsh -fc "source ${LIB}; _ftl_starship_profile_exists transient && print yes || print no"
   [ "$output" = "yes" ]
 }
 

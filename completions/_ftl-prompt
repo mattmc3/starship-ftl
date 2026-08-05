@@ -36,7 +36,8 @@ _ftl_prompt_starship_configs() {
 local curcontext=$curcontext state
 local -a args
 args=(
-  '-p[draw this approximation immediately, then load the theme behind it]:prompt string:'
+  '(-P)-p[draw this approximation immediately, then load the theme behind it]:prompt string:'
+  '(-p)-P[draw the ftl-prompt profile from your starship.toml]'
   '1:theme:->themes'
   '*::theme argument:->themeargs'
 )
