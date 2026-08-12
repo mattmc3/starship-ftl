@@ -16,7 +16,8 @@
 an empty screen while the rest of your `.zshrc` loads. Starship-FTL draws your
 prompt before the rest of your config runs, then swaps in the real one when
 loading finishes. Startup does the same work as before, it just stops making
-you wait to see something.
+you wait to see something. It also adds a clean up for your old prompts after
+you run a command (aka: a transient prompt).
 
 The technique comes from [romkatv][romkatv]'s [instant-zsh][instant-zsh] gist,
 the same idea behind powerlevel10k's instant prompt.
