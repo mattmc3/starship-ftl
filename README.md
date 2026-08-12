@@ -24,6 +24,7 @@ the same idea behind powerlevel10k's instant prompt.
 ## Features
 
 - FTL Prompt:
+  - Enable by calling `ftl-prompt starship`
   - Prompt appears immediately, before plugins and completions load
   - Anything printed during startup, stdout and stderr, is captured
     and replayed above the real prompt instead of being erased
@@ -36,8 +37,11 @@ the same idea behind powerlevel10k's instant prompt.
   - The prompt drawn up front can come from your `starship.toml`, so there is no
   second prompt definition to keep in sync
 - FTL Transient:
+  - Enable by calling `ftl-transient on`
   - Finished commands collapse to a short prompt
   - Zsh ships with a transient right prompt, enabled with `setopt TRANSIENT_RPROMPT`
+
+All features are optional, and require you to enable the ones you want.
 
 ## Installation
 
