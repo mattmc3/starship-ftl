@@ -1,18 +1,19 @@
-# starship-ftl
+# Starship-FTL
 
 [![MIT License](https://img.shields.io/badge/license-MIT-007EC7.svg)](/LICENSE)
 ![version](https://img.shields.io/badge/version-v0.0.4-df5e88)
 
-> A faster-than-light drive for Starship Zsh prompts
+> A faster-than-light (FTL) drive for Starship Zsh prompts
 
 > [!WARNING]
 > This is experimental. Prompt drawing is full of edge cases we haven't seen
 > yet, and some we may not be able to solve for. If it works for your prompt,
 > awesome! If it doesn't, file a bug report and include the starship.toml
-> that isn't working. We may not be able to address every edge case.
+> that isn't working. We may not be able to address every edge case, but
+> we'll give it a shot.
 
 [Starship][starship] renders a prompt in milliseconds, but you still stare at
-an empty screen while the rest of your `.zshrc` loads. starship-ftl draws your
+an empty screen while the rest of your `.zshrc` loads. Starship-FTL draws your
 prompt before the rest of your config runs, then swaps in the real one when
 loading finishes. Startup does the same work as before, it just stops making
 you wait to see something.
@@ -22,18 +23,21 @@ the same idea behind powerlevel10k's instant prompt.
 
 ## Features
 
-- Prompt appears immediately, before plugins and completions load
-- Anything printed during startup, stdout and stderr, is captured
-  and replayed above the real prompt instead of being erased
-- _Hopefully_ no flickering: the swap happens in a single write bracketed by
-  synchronized update marks, and the stray partial-line mark is suppressed
-  while loading
-- Allows you to also set your cursor style up front instead of waiting for
-  your config to load
-- Works with starship out of the box, or with any `promptinit` theme you build
-- The prompt drawn up front can come from your `starship.toml`, so there is no
+- FTL Prompt:
+  - Prompt appears immediately, before plugins and completions load
+  - Anything printed during startup, stdout and stderr, is captured
+    and replayed above the real prompt instead of being erased
+  - _Hopefully_ no flickering: the swap happens in a single write bracketed by
+    synchronized update marks, and the stray partial-line mark is suppressed
+    while loading
+  - Allows you to also set your cursor style up front instead of waiting for
+    your config to load
+  - Works with starship out of the box, or with any `promptinit` theme you build
+  - The prompt drawn up front can come from your `starship.toml`, so there is no
   second prompt definition to keep in sync
-- Optional transient prompt: finished commands collapse to a short prompt
+- FTL Transient:
+  - Finished commands collapse to a short prompt
+  - Zsh ships with a transient right prompt, enabled with `setopt TRANSIENT_RPROMPT`
 
 ## Installation
 
@@ -195,7 +199,7 @@ Add a profile to your `starship.toml`:
 
 ```toml
 [profiles]
-transient = "[❯](bold green) "
+transient = "[❯](bold purple) "
 ```
 
 Then, once your prompt is set up:
