@@ -312,6 +312,12 @@ print "rc=$? fd=${_ftl_prompt_rfd:-unset}"'
   [ "$output" = "rc=1" ]
 }
 
+@test "an escape sequence ended by ST on its own is not visible output" {
+  # Oh-My-Zsh's termsupport ends its OSC 7 with ESC \ rather than BEL.
+  run zclean "_ftl_prompt_visible \$'\\e]7;file:///tmp\\e\\\\'; print \"rc=\$?\""
+  [ "$output" = "rc=1" ]
+}
+
 @test "colouring around real text is still visible output" {
   run zclean "_ftl_prompt_visible \$'\\e[1mdirenv: loading\\e[0m'; print \"rc=\$?\""
   [ "$output" = "rc=0" ]

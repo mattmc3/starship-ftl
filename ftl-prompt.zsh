@@ -239,11 +239,12 @@ _ftl_prompt_profile_render() {
   return 0
 }
 
-# Does captured output take up any room on screen?
+# Does captured output take up any room on screen? An OSC ends with BEL or ST
+# (ESC \), and Oh-My-Zsh's termsupport uses ST.
 _ftl_prompt_visible() {
   emulate -L zsh
   setopt extended_glob
-  [[ -n ${${1//$'\e'(\][^$'\a']#$'\a'|\[[0-9;?]#[[:alpha:]]|\(?|?)/}//[[:space:]]/} ]]
+  [[ -n ${${1//$'\e'(\][^$'\a\e']#($'\a'|$'\e\\')|\[[0-9;?]#[[:alpha:]]|\(?|?)/}//[[:space:]]/} ]]
 }
 
 # Send startup output to a log, unlinked at once so nothing can be left behind,
